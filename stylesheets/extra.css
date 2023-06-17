@@ -1,0 +1,21 @@
+[data-md-color-scheme="technobureau"] {
+  --md-primary-fg-color:        #0069c2;
+  --md-primary-fg-color--light: #ECB7B7;
+  --md-primary-fg-color--dark:  #90030C;
+}
+:root {
+  --md-primary-fg-color:        #0069c2;
+  --md-primary-fg-color--light: #ECB7B7;
+  --md-primary-fg-color--dark:  #90030C;
+  --background-toc-active: #ff1f7230;
+  --category-color: #d00058;
+}
+
+.md-sidebar--secondary .md-nav__item .md-nav__link--active {
+  background-color: var(--background-toc-active);
+  border-left: 2px solid var(--category-color);
+  /* color: black;*/
+}
+.md-sidebar--secondary .md-nav__item .md-nav__link{
+  padding: .2rem 0.8rem;
+}
