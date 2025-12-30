@@ -54,6 +54,12 @@ Insert() {
     local SEARCH_LINE="$2"
     local NEW_LINE="$3"
 
+    # Check if the NEW_LINE already exists in the file
+    if grep -qF "$NEW_LINE" "$FILE"; then
+        echo "Line already exists in $FILE, skipping insertion."
+        return 0
+    fi
+
     # Ensure that the file path and patterns are properly escaped
     sed -i '' -e "s#${SEARCH_LINE}#${SEARCH_LINE}\n${NEW_LINE}#" "$FILE"
 }
@@ -166,21 +172,18 @@ NAV_FILE="src/components/Navigation.jsx"
 
 # 1. Update ActivePageMarker logic
 # Replace the simple activePageIndex calculation with the nested loop logic
-# We use a unique marker line from the original code to start the replacement block
-MATCH_START="let activePageIndex = group.links.findIndex((link) => link.href === pathname)"
-MATCH_END="let top = offset + activePageIndex \* itemHeight"
+if ! grep -q "let absoluteIndex = 0" "$NAV_FILE"; then
+    echo "Updating ActivePageMarker logic in $NAV_FILE"
+    MATCH_START="let activePageIndex = group.links.findIndex((link) => link.href === pathname)"
+    MATCH_END="let top = offset + activePageIndex \* itemHeight"
 
-# Since the block spans multiple lines in replacement, we can use sed to replace the single line with the multi-line block using escaped newlines.
-# Note: Using a temporary file or perl might be cleaner for multi-line, but strict sed/awk was requested.
-# We will use a unique sentinel replacement strategy or simply delete and insert.
+    # Delete the old lines
+    sed -i '' "/${MATCH_START}/d" "$NAV_FILE"
+    sed -i '' "/${MATCH_END}/d" "$NAV_FILE"
 
-# Delete the old lines
-sed -i '' "/${MATCH_START}/d" "$NAV_FILE"
-sed -i '' "/${MATCH_END}/d" "$NAV_FILE"
-
-# Insert the new logic before the return statement of ActivePageMarker
-# Finding a safe insertion point: "let offset = remToPx(0.25)" is just above the logic
-sed -i '' "/let offset = remToPx(0.25)/a\\
+    # Insert the new logic before the return statement of ActivePageMarker
+    # Finding a safe insertion point: "let offset = remToPx(0.25)" is just above the logic
+    sed -i '' "/let offset = remToPx(0.25)/a\\
   // Use the same absolute index calculation as VisibleSectionHighlight\\
   let absoluteIndex = 0\\
   let targetIndex = 0\\
@@ -204,6 +207,9 @@ sed -i '' "/let offset = remToPx(0.25)/a\\
   //let activePageIndex = group.links.findIndex((link) => link.href === pathname)\\
   let top = offset + targetIndex * itemHeight\\
 " "$NAV_FILE"
+else
+    echo "ActivePageMarker logic already updated in $NAV_FILE"
+fi
 
 
 # 2. Update isActiveGroup logic
@@ -217,27 +223,10 @@ sed -i '' "s/${ESCAPED_OLD_IS_ACTIVE}/group.links.findIndex((link) => link.href 
 
 
 # 3. Add nested link rendering
-# We need to insert the sublink <ul> block after the <NavLink> component for the main link.
-# Pattern to find: <NavLink href={link.href} active={link.href === pathname}>\n                {link.title}\n              </NavLink>
-# This is tricky with sed due to newlines. We can target the closing Tag </NavLink> inside NavigationGroup map loop.
-# A more robust anchor might be specific to where it is used.
-# The code context is:
-# <NavLink href={link.href} active={link.href === pathname}>
-#   {link.title}
-# </NavLink>
-# <HERE>
-
-# We can match `</NavLink>` and check if the next line is `AnimatePresence` or just blindly insert after `</NavLink>` (risky if used elsewhere).
-# Inspection of Navigation.jsx shows `NavLink` is used in `NavigationGroup` and `TopLevelNavItem`.
-# In `NavigationGroup`, it follows `{link.title}`.
-
-# Let's insert after `{link.title}` line + `</NavLink>` line.
-# Or simpler: Search for specific block structure.
-# sed command to append after the specific closing NavLink tag that is inside the loop.
-# It's inside `{group.links.map((link) => (` ...
-
-# Anchor: "{link.title}" line.
-sed -i '' "/{link.title}/!b;n;a\\
+if ! grep -q "link.links.map" "$NAV_FILE"; then
+    echo "Adding nested link rendering to $NAV_FILE"
+    # Anchor: "{link.title}" line.
+    sed -i '' "/{link.title}/!b;n;a\\
               {link.links \&\& (\\
                 <ul role=\"list\" className=\"ml-4\">\\
                   {link.links.map((sublink) => (\\
@@ -250,5 +239,24 @@ sed -i '' "/{link.title}/!b;n;a\\
                 </ul>\\
               )}\\
 " "$NAV_FILE"
+else
+    echo "Nested link rendering already present in $NAV_FILE"
+fi
 
 echo "Applied nested navigation changes via sed."
+Comment_block() {
+    local FILE="$1"
+    local START_PATTERN="$2"
+    local END_PATTERN="$3"
+
+    # Check if already commented
+    if grep -q "{/\* ${START_PATTERN}" "$FILE"; then
+        echo "Block already commented in $FILE, skipping."
+        return 0
+    fi
+
+    sed -i '' -e "s|${START_PATTERN}|{/* ${START_PATTERN}|" "$FILE"
+    sed -i '' -e "s|${END_PATTERN}|${END_PATTERN} */}|" "$FILE"
+}
+
+Comment_block "src/components/Header.jsx" '<nav className="hidden md:block">' '</nav>'
