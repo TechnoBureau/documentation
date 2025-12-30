@@ -18,7 +18,7 @@ export const metadata = {
   url: 'https://ganapathichidambaram.github.io',
   description: 'We offers a wealth of information, news, and insights into the ever-evolving world of technology. Whether you are a tech enthusiast, professional, or simply curious about the latest trends, TechnoBureau provides you with a one-stop hub to stay up-to-date and explore the fascinating realm of innovation',
   keywords: "documentation,technical guides,development,programming",
-  authors: [{ name: 'Ganapathi Chidambaram' , url: 'https://github.com/GanapathiChidambaram'}],
+  authors: [{ name: 'Ganapathi Chidambaram', url: 'https://github.com/GanapathiChidambaram' }],
   referrer: 'origin-when-cross-origin',
   creator: 'Ganapathi Chidambaram',
   publisher: 'TechnoBureau',

@@ -1,5 +1,7 @@
 'use client'
 
+import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
+import clsx from 'clsx'
 import {
   Children,
   createContext,
@@ -9,8 +11,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
-import clsx from 'clsx'
 import { create } from 'zustand'
 
 import { Tag } from '@/components/Tag'
@@ -129,9 +129,10 @@ function CodePanel({ children, tag, label, code }) {
   let child = Children.only(children)
 
   if (isValidElement(child)) {
-    tag = child.props.tag ?? tag
-    label = child.props.label ?? label
-    code = child.props.code ?? code
+    const props = child.props
+    tag = props.tag ?? tag
+    label = props.label ?? label
+    code = props.code ?? code
   }
 
   if (!code) {
@@ -205,7 +206,7 @@ function CodeGroupPanels({ children, ...props }) {
 
 function usePreventLayoutShift() {
   let positionRef = useRef(null)
-  let rafRef = useRef()
+  let rafRef = useRef(undefined)
 
   useEffect(() => {
     return () => {

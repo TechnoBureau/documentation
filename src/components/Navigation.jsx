@@ -1,15 +1,17 @@
 'use client'
 
-import { useRef } from 'react'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import clsx from 'clsx'
 import { AnimatePresence, motion, useIsPresent } from 'framer-motion'
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useRef } from 'react'
 
+import { Button } from '@/components/Button'
 import { useIsInsideMobileNavigation } from '@/components/MobileNavigation'
 import { useSectionStore } from '@/components/SectionProvider'
 import { Tag } from '@/components/Tag'
 import { remToPx } from '@/lib/remToPx'
+import { CloseButton } from '@headlessui/react'
 
 function useInitialValue(value, condition = true) {
   let initialValue = useRef(value).current
@@ -19,12 +21,13 @@ function useInitialValue(value, condition = true) {
 function TopLevelNavItem({ href, children }) {
   return (
     <li className="md:hidden">
-      <Link
+      <CloseButton
+        as={Link}
         href={href}
         className="block py-1 text-sm text-zinc-600 transition hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
       >
         {children}
-      </Link>
+      </CloseButton>
     </li>
   )
 }
@@ -37,7 +40,8 @@ function NavLink({
   isAnchorLink = false,
 }) {
   return (
-    <Link
+    <CloseButton
+      as={Link}
       href={href}
       aria-current={active ? 'page' : undefined}
       className={clsx(
@@ -54,7 +58,7 @@ function NavLink({
           {tag}
         </Tag>
       )}
-    </Link>
+    </CloseButton>
   )
 }
 
@@ -78,29 +82,9 @@ function VisibleSectionHighlight({ group, pathname }) {
   let height = isPresent
     ? Math.max(1, visibleSections.length) * itemHeight
     : itemHeight
-
-  // Calculate absolute index including all sub-links
-  let absoluteIndex = 0
-  let targetIndex = 0
-
-  for (let i = 0; i < group.links.length; i++) {
-    const link = group.links[i]
-    if (link.href === pathname) {
-      targetIndex = absoluteIndex
-    }
-    absoluteIndex++
-
-    if (link.links) {
-      for (let j = 0; j < link.links.length; j++) {
-        if (link.links[j].href === pathname) {
-          targetIndex = absoluteIndex
-        }
-        absoluteIndex++
-      }
-    }
-  }
-
-  let top = targetIndex * itemHeight + firstVisibleSectionIndex * itemHeight
+  let top =
+    group.links.findIndex((link) => link.href === pathname) * itemHeight +
+    firstVisibleSectionIndex * itemHeight
 
   return (
     <motion.div
@@ -117,29 +101,8 @@ function VisibleSectionHighlight({ group, pathname }) {
 function ActivePageMarker({ group, pathname }) {
   let itemHeight = remToPx(2)
   let offset = remToPx(0.25)
-
-  // Use the same absolute index calculation as VisibleSectionHighlight
-  let absoluteIndex = 0
-  let targetIndex = 0
-
-  for (let i = 0; i < group.links.length; i++) {
-    const link = group.links[i]
-    if (link.href === pathname) {
-      targetIndex = absoluteIndex
-    }
-    absoluteIndex++
-
-    if (link.links) {
-      for (let j = 0; j < link.links.length; j++) {
-        if (link.links[j].href === pathname) {
-          targetIndex = absoluteIndex
-        }
-        absoluteIndex++
-      }
-    }
-  }
-
-  let top = offset + targetIndex * itemHeight
+  let activePageIndex = group.links.findIndex((link) => link.href === pathname)
+  let top = offset + activePageIndex * itemHeight
 
   return (
     <motion.div
@@ -154,6 +117,9 @@ function ActivePageMarker({ group, pathname }) {
 }
 
 function NavigationGroup({ group, className }) {
+  // If this is the mobile navigation then we always render the initial
+  // state, so that the state does not change during the close animation.
+  // The state will still update when we re-open (re-render) the navigation.
   let isInsideMobileNavigation = useIsInsideMobileNavigation()
   let [pathname, sections] = useInitialValue(
     [usePathname(), useSectionStore((s) => s.sections)],
@@ -161,10 +127,7 @@ function NavigationGroup({ group, className }) {
   )
 
   let isActiveGroup =
-    group.links.findIndex((link) =>
-      link.href === pathname ||
-      (link.links && link.links.some(sublink => sublink.href === pathname))
-    ) !== -1
+    group.links.findIndex((link) => link.href === pathname) !== -1
 
   return (
     <li className={clsx('relative mt-6', className)}>
@@ -195,17 +158,6 @@ function NavigationGroup({ group, className }) {
               <NavLink href={link.href} active={link.href === pathname}>
                 {link.title}
               </NavLink>
-              {link.links && (
-                <ul role="list" className="ml-4">
-                  {link.links.map((sublink) => (
-                    <motion.li key={sublink.href} layout="position" className="relative">
-                      <NavLink href={sublink.href} active={sublink.href === pathname}>
-                        {sublink.title}
-                      </NavLink>
-                    </motion.li>
-                  ))}
-                </ul>
-              )}
               <AnimatePresence mode="popLayout" initial={false}>
                 {link.href === pathname && sections.length > 0 && (
                   <motion.ul
@@ -247,7 +199,8 @@ export const navigation = [
     title: 'Guides',
     links: [
       { title: 'Introduction', href: '/' },
-      { title: 'DevOps', href: '/devops',
+      {
+        title: 'DevOps', href: '/devops',
         links: [
           { title: 'General', href: '/devops/general' },
           { title: 'CI/CD', href: '/devops/cicd' },
@@ -255,7 +208,8 @@ export const navigation = [
           // { title: 'Ansible', href: '/devops/ansible' },
         ]
       },
-      { title: 'Kubernetes', href: '/kubernetes',
+      {
+        title: 'Kubernetes', href: '/kubernetes',
         links: [
           { title: 'General', href: '/kubernetes/general' },
           { title: 'Deployment', href: '/kubernetes/deployment' },
@@ -281,7 +235,6 @@ export const navigation = [
     ],
   },
 ]
-
 
 export function Navigation(props) {
   return (

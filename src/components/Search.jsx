@@ -1,9 +1,13 @@
 'use client'
 
+import { createAutocomplete } from '@algolia/autocomplete-core'
+import { Dialog, DialogBackdrop, DialogPanel } from '@headlessui/react'
+import clsx from 'clsx'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
-  forwardRef,
   Fragment,
   Suspense,
+  forwardRef,
   useCallback,
   useEffect,
   useId,
@@ -11,31 +15,21 @@ import {
   useState,
 } from 'react'
 import Highlighter from 'react-highlight-words'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { createAutocomplete } from '@algolia/autocomplete-core'
-import { Dialog, DialogPanel, DialogBackdrop } from '@headlessui/react'
-import clsx from 'clsx'
 
 import { navigation } from '@/components/Navigation'
+import { useMobileNavigationStore } from './MobileNavigation'
 
-function useAutocomplete({ close }) {
+function useAutocomplete({ onNavigate }) {
   let id = useId()
   let router = useRouter()
   let [autocompleteState, setAutocompleteState] = useState({})
 
   function navigate({ itemUrl }) {
-    if (!itemUrl) {
-      return
+    if (itemUrl) {
+      router.push(itemUrl)
     }
 
-    router.push(itemUrl)
-
-    if (
-      itemUrl ===
-      window.location.pathname + window.location.search + window.location.hash
-    ) {
-      close()
-    }
+    onNavigate()
   }
 
   let [autocomplete] = useState(() =>
@@ -206,7 +200,7 @@ function SearchResults({ autocomplete, query, collection }) {
         <NoResultsIcon className="mx-auto h-5 w-5 stroke-zinc-900 dark:stroke-zinc-600" />
         <p className="mt-2 text-xs text-zinc-700 dark:text-zinc-400">
           Nothing found for{' '}
-          <strong className="font-semibold break-words text-zinc-900 dark:text-white">
+          <strong className="font-semibold wrap-break-word text-zinc-900 dark:text-white">
             &lsquo;{query}&rsquo;
           </strong>
           . Please try again.
@@ -275,12 +269,13 @@ const SearchInput = forwardRef(function SearchInput(
   )
 })
 
-function SearchDialog({ open, setOpen, className }) {
+function SearchDialog({ open, setOpen, className, onNavigate = () => {} }) {
   let formRef = useRef(null)
   let panelRef = useRef(null)
   let inputRef = useRef(null)
   let { autocomplete, autocompleteState } = useAutocomplete({
-    close() {
+    onNavigate() {
+      onNavigate()
       setOpen(false)
     },
   })
@@ -327,7 +322,7 @@ function SearchDialog({ open, setOpen, className }) {
       <div className="fixed inset-0 overflow-y-auto px-4 py-4 sm:px-6 sm:py-20 md:py-32 lg:px-8 lg:py-[15vh]">
         <DialogPanel
           transition
-          className="mx-auto transform-gpu overflow-hidden rounded-lg bg-zinc-50 ring-1 shadow-xl ring-zinc-900/7.5 data-closed:scale-95 data-closed:opacity-0 data-enter:duration-300 data-enter:ease-out data-leave:duration-200 data-leave:ease-in sm:max-w-xl dark:bg-zinc-900 dark:ring-zinc-800"
+          className="mx-auto transform-gpu overflow-hidden rounded-lg bg-zinc-50 shadow-xl ring-1 ring-zinc-900/7.5 data-closed:scale-95 data-closed:opacity-0 data-enter:duration-300 data-enter:ease-out data-leave:duration-200 data-leave:ease-in sm:max-w-xl dark:bg-zinc-900 dark:ring-zinc-800"
         >
           <div {...autocomplete.getRootProps({})}>
             <form
@@ -422,20 +417,26 @@ export function Search() {
 }
 
 export function MobileSearch() {
+  let { close } = useMobileNavigationStore()
   let { buttonProps, dialogProps } = useSearchProps()
 
   return (
     <div className="contents lg:hidden">
       <button
         type="button"
-        className="flex h-6 w-6 items-center justify-center rounded-md transition hover:bg-zinc-900/5 lg:hidden dark:hover:bg-white/5"
+        className="relative flex size-6 items-center justify-center rounded-md transition hover:bg-zinc-900/5 lg:hidden dark:hover:bg-white/5"
         aria-label="Find something..."
         {...buttonProps}
       >
+        <span className="absolute size-12 pointer-fine:hidden" />
         <SearchIcon className="h-5 w-5 stroke-zinc-900 dark:stroke-white" />
       </button>
       <Suspense fallback={null}>
-        <SearchDialog className="lg:hidden" {...dialogProps} />
+        <SearchDialog
+          className="lg:hidden"
+          onNavigate={close}
+          {...dialogProps}
+        />
       </Suspense>
     </div>
   )

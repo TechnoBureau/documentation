@@ -1,16 +1,17 @@
-import { forwardRef } from 'react'
-import Link from 'next/link'
 import clsx from 'clsx'
 import { motion, useScroll, useTransform } from 'framer-motion'
+import Link from 'next/link'
+import { forwardRef } from 'react'
 
 import { Logo } from '@/components/Logo'
 import {
   MobileNavigation,
   useIsInsideMobileNavigation,
+  useMobileNavigationStore,
 } from '@/components/MobileNavigation'
-import { useMobileNavigationStore } from '@/components/MobileNavigation'
 import { MobileSearch, Search } from '@/components/Search'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { CloseButton } from '@headlessui/react'
 
 function TopLevelNavItem({ href, children }) {
   return (
@@ -30,8 +31,8 @@ export const Header = forwardRef(function Header({ className, ...props }, ref) {
   let isInsideMobileNavigation = useIsInsideMobileNavigation()
 
   let { scrollY } = useScroll()
-  let bgOpacityLight = useTransform(scrollY, [0, 72], [0.5, 0.9])
-  let bgOpacityDark = useTransform(scrollY, [0, 72], [0.2, 0.8])
+  let bgOpacityLight = useTransform(scrollY, [0, 72], ['50%', '90%'])
+  let bgOpacityDark = useTransform(scrollY, [0, 72], ['20%', '80%'])
 
   return (
     <motion.div
@@ -44,7 +45,7 @@ export const Header = forwardRef(function Header({ className, ...props }, ref) {
           'backdrop-blur-xs lg:left-72 xl:left-80 dark:backdrop-blur-sm',
         isInsideMobileNavigation
           ? 'bg-white dark:bg-zinc-900'
-          : 'bg-white/[var(--bg-opacity-light)] dark:bg-zinc-900/[var(--bg-opacity-dark)]',
+          : 'bg-white/(--bg-opacity-light) dark:bg-zinc-900/(--bg-opacity-dark)',
       )}
       style={{
         '--bg-opacity-light': bgOpacityLight,
@@ -61,18 +62,18 @@ export const Header = forwardRef(function Header({ className, ...props }, ref) {
       <Search />
       <div className="flex items-center gap-5 lg:hidden">
         <MobileNavigation />
-        <Link href="/" aria-label="Home">
+        <CloseButton as={Link} href="/" aria-label="Home">
           <Logo className="h-6" />
-        </Link>
+        </CloseButton>
       </div>
       <div className="flex items-center gap-5">
-        {/* <nav className="hidden md:block">
+        <nav className="hidden md:block">
           <ul role="list" className="flex items-center gap-8">
             <TopLevelNavItem href="/devops">DevOps</TopLevelNavItem>
             <TopLevelNavItem href="/kubernetes">Kubernetes</TopLevelNavItem>
             <TopLevelNavItem href="/linux">Linux</TopLevelNavItem>
           </ul>
-        </nav> */}
+        </nav>
         <div className="hidden md:block md:h-5 md:w-px md:bg-zinc-900/10 md:dark:bg-white/15" />
         <div className="flex gap-4">
           <MobileSearch />

@@ -299,7 +299,7 @@ export default {
             paddingLeft: theme('padding[1.5]'),
             boxShadow: 'inset 0 0 0 1px var(--tw-prose-code-ring)',
             backgroundColor: 'var(--tw-prose-code-bg)',
-            fontSize: theme('fontSize.2xs'),
+            fontSize: theme('fontSize.2xs')[0],
           },
           ':is(a, h1, h2, h3, blockquote, thead th) code': {
             color: 'inherit',

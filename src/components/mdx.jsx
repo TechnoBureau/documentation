@@ -1,12 +1,12 @@
-import Link from 'next/link'
 import clsx from 'clsx'
+import Link from 'next/link'
 
 import { Heading } from '@/components/Heading'
 import { Prose } from '@/components/Prose'
 
 export const a = Link
 export { Button } from '@/components/Button'
-export { CodeGroup, Code as code, Pre as pre } from '@/components/Code'
+export { Code as code, CodeGroup, Pre as pre } from '@/components/Code'
 
 export function wrapper({ children }) {
   return (

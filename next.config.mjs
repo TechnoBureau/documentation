@@ -17,10 +17,8 @@ const withMDX = nextMDX({
 const nextConfig = {
   output: 'export',
   pageExtensions: ['js', 'jsx', 'ts', 'tsx', 'mdx'],
-  experimental: {
-    outputFileTracingIncludes: {
-      '/**/*': ['./src/app/**/*.mdx'],
-    },
+  outputFileTracingIncludes: {
+    '/**/*': ['./src/app/**/*.mdx'],
   },
 }
 
