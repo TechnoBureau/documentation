@@ -14,7 +14,7 @@ The find utility is a powerful command-line tool in Linux that allows users to s
 ## Find Alphanumeric Files with Special Extension
 To find files with alphanumeric names and specific extensions, use the following command:
 
-``` bash
+```bash
 find . -type f -regex ".*[0-9].*\.\(xls\|csv\|php\)"
 ```
 
@@ -24,7 +24,7 @@ This command searches for files in the current directory and its subdirectories 
 
 If you want to exclude specific folders from the search, use the following command:
 
-``` bash
+```bash
 find . -type f -regex ".*[0-9].*\.\(xls\|csv\|php\)" -not -path "./database/*"
 ```
 
@@ -34,7 +34,7 @@ This command excludes the ./database folder from the search. You can modify the 
 
 To skip multiple folders from the search, use the following command:
 
-``` bash
+```bash
 find . -type f -regex ".*[0-9].*\.\(xls\|csv\|php\)" -not -path "./database/*" -not -path "./public/DB/*"
 ```
 
@@ -44,7 +44,7 @@ This command excludes both the ./database and ./public/DB folders from the searc
 
 If you want to skip specific folders and files with a certain pattern, use the following command:
 
-``` bash
+```bash
 find . -type f -regex ".*[0-9].*\.\(xls\|csv\|php\)" -not -path "./database/*" -not -path "./app/Console/Commands/bulkServerUpload_[0-9].php"
 ```
 
@@ -55,7 +55,7 @@ This command excludes the ./database folder and files matching the pattern bulkS
 
 To find dump files and delete them, use the following command:
 
-``` bash
+```bash
 find . -type f -regex ".*\.\(zip\|tar\.gz\|sql\)" -not -path "./public/DB/*" -delete
 ```
 
@@ -65,7 +65,7 @@ This command searches for files with extensions .zip, .tar.gz, or .sql and delet
 
 If you want to find log files and empty their contents, use the following command:
 
-``` bash
+```bash
 find . -type f -name "*.\(txt\|log\)" -exec tee {} \; </dev/null
 ```
 
@@ -75,7 +75,7 @@ This command finds files with extensions .txt or .log and empties their contents
 
 The first command, **`find -name '*.php' | xargs grep -Pz '\?>[\s]+$' -l`**, allows you to search for PHP files that end with whitespace. Let's break down the command and understand its components.
 
-``` bash
+```bash
 find -name '*.php' | xargs grep -Pz '\?>[\s]+$' -l
 ```
 
@@ -91,7 +91,7 @@ When you execute this command, it will search for PHP files in the current direc
 
 The second command, **`find -name '*.php' | xargs grep -Pz '^[\s]+<\?' -l`**, helps you find PHP files that start with whitespace. Let's break down this command as well.
 
-``` bash
+```bash
 find -name '*.php' | xargs grep -Pz '^[\s]+<\?' -l
 ```
 

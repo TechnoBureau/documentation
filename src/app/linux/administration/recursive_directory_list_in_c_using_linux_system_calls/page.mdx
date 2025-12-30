@@ -11,7 +11,7 @@ export const metadata = {
 
 In this article, we will explore a C code that utilizes Linux system calls to recursively list directories and their contents. The code provides the flexibility to filter the listing based on file types and specify the depth of recursion. Let's dive into the details of the code.
 
-``` c
+```c
 #define _GNU_SOURCE
 #include <dirent.h>     /* Defines DT_* constants */
 #include <fcntl.h>

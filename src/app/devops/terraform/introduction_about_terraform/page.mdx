@@ -46,13 +46,13 @@ Below are some of the benefits of using Terraform.
 
 <CodeGroup tag="BASH" label="Install of Terraform">
 
-      ```  bash {{ title: 'Debian/Ubuntu' }}
+      ```bash {{ title: 'Debian/Ubuntu' }}
       $ curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
       $ sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
       $ sudo apt-get update && sudo apt-get install terraform
       ```
 
-      ```  bash {{ title: 'Linux' }}
+      ```bash {{ title: 'Linux' }}
       $ sudo yum install -y yum-utils
       $ sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
       $ sudo yum -y install terraform
@@ -148,7 +148,7 @@ explicitly declare which provider we'll use in our Terraform project
 and inform its version. For this purpose, we use the version attribute
 available to any provider declaration:
 
-``` hcl
+```hcl
 provider "aws" {
    access_key = "B5KG6Fe5GUKIATUF5UD"
    secret_key = "R4gb65y56GBF6765ejYSJA4YtaZ+T6GY7H"
@@ -164,7 +164,7 @@ EC2 instance, an Azure MariaDB, or a DNS entry.
 
 Let's look at a simple resource definition:
 
-``` hcl
+```hcl
 resource "aws_instance" "web" {
    ami = "some-ami-id"
    instance_type = "t2.micro"
@@ -188,7 +188,7 @@ resources.**
 To illustrate how this works, let's expand the previous example by
 creating our EC2 instance in a non-default VPC
 
-```  hcl
+```hcl
 resource "aws_vpc" "apps" {
    cidr_block = "10.0.0.0/16"
 }
@@ -224,7 +224,7 @@ whereas for_each accepts a list or map of values.
 
 For instance, let's use count to create some EC2 instances on AWS:
 
-```  hcl
+```hcl
 resource "aws_instance" "server" {
    count = "${var.server_count}"
    ami = "ami-xxxxxxx"
@@ -242,7 +242,7 @@ index (zero-based) of each instance.
 Likewise, we can use the for_each meta argument to create those
 instances based on a map:
 
-```  hcl
+```hcl
 variable "instances" {
    type = map(string)
 }
@@ -277,7 +277,7 @@ create other resources.
 A typical example is the aws_ami data source available in the AWS
 provider, which we use to recover attributes from an existing AMI:
 
-```  hcl
+```hcl
 data "aws_ami" "ubuntu" {
    most_recent = true
 
@@ -299,7 +299,7 @@ AMI registry and returns several attributes related to the located
 image. We can then use those attributes in other resource definitions,
 prepending the data prefix to the attribute name:
 
-```  hcl
+```hcl
 resource "aws_instance" "web" {
    ami = "${data.aws_ami.ubuntu.id}"
    instance_type = "t2.micro"
@@ -328,7 +328,7 @@ the project's root folder as its storage location. We can also
 configure an alternative remote backend by declaring it in a terraform
 block in one of the project's .tf files:
 
-```  hcl
+```hcl
 terraform {
 backend "s3" {
    bucket = "some-bucket"
@@ -354,7 +354,7 @@ important point is that sub-directories are not included as part of a
 module. Instead, the parent module must explicitly include them using
 the module declaration:
 
-```  hcl
+```hcl
 module "networking" {
    source = "./networking"
    create_public_ip = true
@@ -375,7 +375,7 @@ module.
 Any module, including the top, or main one, can define several input
 variables using variable block definitions:
 
-```  hcl
+```hcl
 variable "myvar" {
    type = string
    default = "Some Value"
@@ -401,7 +401,7 @@ that requires a value for an input variable but we fail to supply one.**
 
 Once defined, we can use variables in expressions using the var prefix:
 
-```  hcl
+```hcl
 resource "xxx_type" "some_name" {
    arg = "${var.myvar}"
 }
@@ -415,7 +415,7 @@ to use as input for another module or resource. **To address those
 cases, a module can define output blocks that expose a subset of the
 created resources:**
 
-```  hcl
+```hcl
 output "web_addr" {
    value = "${aws_instance.web.private_ip}"
    description = "Web server's private IP address"
@@ -436,7 +436,7 @@ limited to the module where they're declared**. The use of local
 variables tends to reduce code repetition, especially when dealing with
 output values from modules:
 
-```  hcl
+```hcl
 locals {
    vpc_id = "${module.network.vpc_id}"
 }
@@ -509,7 +509,7 @@ basics.
 Create **main.tf** and add the below contents into the **main.tf** file
 to understand about the terraform lifecycle.
 
-```  hcl
+```hcl
 resource "local_file" "hello" {
    content              = "Hello, Terraform"
    directory_permission = "0777"
@@ -521,7 +521,7 @@ resource "local_file" "hello" {
 Since this is the first time we're running this project, we need to
 initialize it with the init command:
 
-```  bash
+```bash
 $ terraform init
 
 Initializing the backend...
@@ -544,7 +544,7 @@ we use the *plan* command to verify what actions Terraform will perform
 to create our resources. This step works pretty much as the "dry run"
 feature available in other build systems, such as GNU's make tool:
 
-```  bash
+```bash
 $ terraform plan
 ... messages omitted
 Terraform will perform the following actions:
@@ -574,7 +574,7 @@ default values.
 We can now proceed to actual resource creation using the *apply*
 command:
 
-```  bash
+```bash
 $ terraform apply
 
 An execution plan has been generated and is shown below.
@@ -609,7 +609,7 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 We can now verify that the file has been created with the specified
 content:
 
-```  bash
+```bash
 $ cat hello.txt
 Hello, Terraform
 ```
@@ -618,7 +618,7 @@ All good! Now, let's see what happens if we rerun the apply command,
 this time using the -auto-approve flag so Terraform goes right away
 without asking for any confirmation:
 
-```  bash
+```bash
 $ terraform apply -auto-approve
 local_file.hello: Refreshing state... [id=392b5481eae4ab2178340f62b752297f72695d57]
 
@@ -631,7 +631,7 @@ have changed one of its attributes, a scenario that is usually referred
 to as "configuration drift"**. Let's see how Terraform behaves in
 this scenario:
 
-```  bash
+```bash
 $ echo foo > hello.txt
 $ terraform plan
 Refreshing Terraform state in-memory prior to plan...
@@ -669,7 +669,7 @@ single step \-- recreating the file.
 We now can run apply again and, as a result, it will restore the
 contents of the file to its intended content:
 
-```  bash
+```bash
 $ terraform apply -auto-approve
 ... messages omitted
 Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
@@ -684,7 +684,7 @@ Hello, Terraform
 It would destroy the resources which we created from current directory
 and according to the state file.
 
-```  bash
+```bash
 $ terraform destroy --auto-approve
 
 Terraform will perform the following actions:

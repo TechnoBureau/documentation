@@ -16,7 +16,7 @@ Install GnuPG based on Operating System
 
 <CodeGroup tag="BASH" label="Install GnuPG">
 
-      ``` bash {{ title: 'Linux' }}
+      ```bash {{ title: 'Linux' }}
       # Install GnuPG: Most Linux distributions come with GnuPG preinstalled.
       # If it's not already installed, use your package manager to install GnuPG.
       # For example, on Ubuntu or Debian-based systems, run the following command:
@@ -25,7 +25,7 @@ Install GnuPG based on Operating System
       sudo dnf install gnupg pinentry
       ```
 
-      ``` bash {{ title: 'MacOS' }}
+      ```bash {{ title: 'MacOS' }}
       # Install Homebrew: Homebrew is a popular package manager for macOS.
       # Open Terminal and run the following command to install Homebrew:
       /bin/bash -c \
@@ -43,7 +43,7 @@ Create or modify the following configuration files to set up GPG:
 
 - `**~/.gnupg/gpg.conf**`: Open the file and add the following lines:
 
-``` bash
+```bash
 use-agent
 # This silences the "you need a passphrase" message once the passphrase handling is all set.
 # Use at your own discretion - may prevent the successful interactive use of some operations.
@@ -55,12 +55,12 @@ batch
 
 <CodeGroup tag="BASH" label="GPG Agent Configuration">
 
-      ``` bash {{ title: 'Linux' }}
+      ```bash {{ title: 'Linux' }}
       # Enables GPG to find gpg-agent
       use-standard-socket
       ```
 
-      ``` bash {{ title: 'MacOS' }}
+      ```bash {{ title: 'MacOS' }}
       # Enables GPG to find gpg-agent
       use-standard-socket
 
@@ -77,13 +77,13 @@ batch
 
 <CodeGroup tag="BASH" label="User Profile Configuration">
 
-      ``` bash {{ title: 'Linux' }}
+      ```bash {{ title: 'Linux' }}
       # Add below content in the file: ~/.bashrc or `~/.bash_profile
       GPG_TTY=$(tty)
       export GPG_TTY
       ```
 
-      ``` bash {{ title: 'MacOS' }}
+      ```bash {{ title: 'MacOS' }}
       # Add below content in the file: ~/.zprofile
       # Add the following to your shell init to set up gpg-agent automatically for every shell
       if [ -f ~/.gnupg/.gpg-agent-info ] && [ -n "$(pgrep gpg-agent)" ]; then
@@ -99,14 +99,14 @@ batch
 
 - Generate a key pair: Use the following command to generate your GPG key pair:
 
-``` bash
+```bash
 gpg --full-generate-key
 ```
 Follow the prompts to select the key type, key size, and expiration date. Enter a strong passphrase to protect your private key.
 
 - Export the public key: Once the key pair is generated, you can export the public key using the key ID. Run the following command, replacing XXXXXX with your key ID:
 
-``` bash
+```bash
 # get the public key using key ID
 gpg --armor --export XXXXXX
 ```
@@ -119,7 +119,7 @@ The output will be your public key in ASCII-armored format, which can be shared 
 
 2. Import the GPG key: Open your terminal and run the following command, replacing `<KEY-FILE>` with the path to your GPG key file:
 
-``` bash
+```bash
 gpg --import <KEY_FILE>.pgp
 
 # or
@@ -132,14 +132,14 @@ The GPG key will be imported, and you will see the key details displayed in the 
 
 3. Trust the imported key (optional): By default, imported keys are not trusted. If the key belongs to someone you trust, you can manually trust it. Run the following command, replacing `<KEY-ID>` with the ID of the imported key (can be found in the output of the previous command):
 
-``` bash
+```bash
 gpg --edit-key <KEY-ID>
 ```
 This will open the GPG command-line interface. Enter the command trust to set the trust level for the key. Follow the prompts to select the appropriate level of trust.
 
 4. Verify the imported key: You can verify that the key has been successfully imported by running the command:
 
-``` bash
+```bash
 gpg --list-keys
 ```
 The imported key should be listed along with its details.
@@ -149,7 +149,7 @@ The imported key should be listed along with its details.
 
 To enable Git commit signing with your GPG key, run the following command, replacing `<YOUR-SIGNING-KEY-PUB-ID>` with your key ID:
 
-``` bash
+```bash
 gpg --list-keys --keyid-format SHORT
 
 git config --global user.signingkey <YOUR-SIGNING-KEY-PUB-ID>
@@ -167,7 +167,7 @@ git config --global commit.gpgsign true
 
 Restart the terminal: After making these configurations, it's recommended to restart the terminal for the changes to take effect.
 
-``` bash
+```bash
 ## Kill gpg agent once configured
 pkill -TERM gpg-agent
 ```
@@ -183,7 +183,7 @@ Open VSCode, go to *Preferences > Settings*, and search for **git.enableCommitSi
 To test your GPG setup, you can encrypt and decrypt a message. Run the following command, replacing `<PUT THE KEY ID HERE>` with the key ID you used:
 
 
-``` bash
+```bash
 echo test | gpg -e -r <PUT THE KEY ID HERE> | gpg -d
 ```
 

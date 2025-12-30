@@ -27,19 +27,19 @@ Keepalived is a Linux Virtual Server that balances IP load across a set of real 
 
 1. Install the Keepalived package on the load balancing server (loadb1), where HAProxy will run:
 
-    ``` bash
+    ```bash
     yum install keepalived
     ```
 2. Backup the existing Keepalived configuration:
 
-    ``` bash
+    ```bash
     mv /etc/keepalived/keepalived.conf{,.back}
     vim /etc/keepalived/keepalived.conf
     ```
 
 3. Configure the Keepalived using the following example configuration, based on your server's IP configuration:
 
-    ``` bash
+    ```bash
     global_defs {
         notification_email {
             user@mydomain.com
@@ -65,18 +65,18 @@ Keepalived is a Linux Virtual Server that balances IP load across a set of real 
     ```
 4. Edit the /etc/sysctl.conf file to enable the non-local IP binding:
 
-    ``` bash
+    ```bash
     vi /etc/sysctl.conf
     ```
   Add the following line:
 
-    ``` bash
+    ```bash
     net.ipv4.ip_nonlocal_bind=1
     ```
 
 5. Restart the Keepalived daemon and enable it to start on boot:
 
-    ``` bash
+    ```bash
     systemctl restart keepalived
     systemctl enable keepalived
     ```
@@ -87,7 +87,7 @@ Keepalived is a Linux Virtual Server that balances IP load across a set of real 
 
 To configure a backup load balancer server (loadb2) for failover, follow the same steps as above but use the following configuration
 
-  ``` bash
+  ```bash
   global_defs {
       notification_email {
           user@mydomain.com
@@ -121,19 +121,19 @@ HAProxy is a high availability load balancer that ensures efficient distribution
 
 1. Install the HAProxy package:
 
-    ``` bash
+    ```bash
     yum install haproxy
     ```
 
 2. Backup the default HAProxy configuration:
 
-    ``` bash
+    ```bash
     mv /etc/haproxy/haproxy.cfg{,.back}
     ```
 
 3. Create a new HAProxy configuration file with the following content:
 
-    ``` bash
+    ```bash
     global
         user haproxy
         group haproxy
@@ -164,7 +164,7 @@ HAProxy is a high availability load balancer that ensures efficient distribution
 
 4. Before starting HAProxy, create a user on each MySQL server for health checks. This user should be created without a password
 
-    ``` bash
+    ```bash
     mysql -u root -p
     MariaDB> CREATE USER 'haproxy_check'@'%';
     MariaDB> FLUSH PRIVILEGES;
@@ -172,7 +172,7 @@ HAProxy is a high availability load balancer that ensures efficient distribution
 
 5. Restart the HAProxy service and enable it to start on boot:
 
-    ``` bash
+    ```bash
     systemctl restart haproxy
     systemctl enable haproxy
     ```

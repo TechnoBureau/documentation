@@ -167,7 +167,7 @@ Kubernetes
 -   They provide logical separation between the teams and their
     environments.
 
-```  yaml
+```yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -228,7 +228,7 @@ A service is a REST object in Kubernetes whose definition can be posted
 to Kubernetes apiServer on the Kubernetes master to create a new
 instance.
 
-```  yaml
+```yaml
 kind: Service
 apiVersion: v1
 metadata:
@@ -263,7 +263,7 @@ pod IP address is.
 
 ![](/kubernetes/general/introduction_about_kubernetes_and_basics/kubernetes_clusterip.png)
 
-```  yaml
+```yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -296,7 +296,7 @@ nodes where the pod that matches the label selector does not run.
 Traffic on such nodes is internally NATed and forwarded to the target
 pod (Cluster external traffic policy).
 
-```  yaml
+```yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -326,7 +326,7 @@ services of type LoadBalancer.
 It will also automatically create ClusterIP and NodePort services and
 route traffic accordingly.
 
-```  yaml
+```yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -366,7 +366,7 @@ There are two types of Pods
 If you defined single image on Pod Specification then it would created
 with single container.
 
-```  yaml
+```yaml
 apiVersion: v1
 kind: Pod
 metadata:
@@ -385,7 +385,7 @@ containerPort: 7500
 If you defined multiple image on Pod Specification then it would created
 with multi container with each image specified.
 
-```  yaml
+```yaml
 apiVersion: v1
 kind: Pod
 metadata:
@@ -418,7 +418,7 @@ got a new controller in the Kubernetes master called the deployment
 controller which makes it happen. It has the capability to change the
 deployment midway.
 
-```  yaml
+```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -466,7 +466,7 @@ There are three main ways of uses for Secrets:
 -   As container environment variable.
 -   By the kubelet when pulling images for the Pod.
 
-```  yaml
+```yaml
 apiVersion: v1
 data:
   username: admin
@@ -489,7 +489,7 @@ To use a Secret in an environment variable in a Pod:
 -   Modify your image and/or command line so that the program looks for
     values in the specified environment variables.
 
-```  yaml
+```yaml
 apiVersion: v1
 kind: Pod
 metadata:
@@ -520,7 +520,7 @@ Create a Secret from File , run the below command to do the same.
 However the adjust the file location according to your file location
 available.
 
-```  bash
+```bash
 kubectl create secret mysecret-from-file db-user-pass --from-file=./username.txt --from-file=./password.txt
 ```
 
@@ -545,7 +545,7 @@ inside the filesystem of one or more of the Pod's containers.
     files in that directory. Each key in the secret data map becomes the
     filename under mountPath.
 
-```  yaml
+```yaml
 apiVersion: v1
 kind: Pod
 metadata:

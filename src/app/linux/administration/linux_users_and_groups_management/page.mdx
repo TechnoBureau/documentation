@@ -180,7 +180,7 @@ The following cross reference shows which programs in the shadow password suite 
 
 To create a new standard user, we should use the `useradd` command and for the syntax is as follows:
 
-  ``` bash
+  ```bash
   useradd <name>
   adduser <name>
   ```
@@ -189,7 +189,7 @@ These mentioned Process would happen for Every newly created user.
 
   - Would create the Home Directory for the user.
   - Copy the Below mentioned Files on their Home Directory.
-      ``` bash
+      ```bash
       .bash_logout
       .bash_profile
       .bashrc
@@ -207,7 +207,7 @@ information for the user(Full Name,Room Number,Work Phone,Home Phone) to store i
 
     home\_dir will be used as the value for the user’s login directory
 
-    ``` bash
+    ```bash
       useradd <name> -d /home/<user's home>
     ```
 
@@ -215,7 +215,7 @@ information for the user(Full Name,Room Number,Work Phone,Home Phone) to store i
 
     the date when the account will expire
 
-    ``` bash
+    ```bash
     useradd <name>** -e <YYYY-MM-DD>
     ```
 
@@ -223,7 +223,7 @@ information for the user(Full Name,Room Number,Work Phone,Home Phone) to store i
 
     the number of days before the account expires
 
-    ``` bash
+    ```bash
     useradd <name> -f <0 or -1>
     ```
 
@@ -305,7 +305,7 @@ information for the user(Full Name,Room Number,Work Phone,Home Phone) to store i
 
     The name of the user's login shell. The default is to leave this field blank, which causes the system to select the default login shell specified by the SHELL variable in /etc/default/useradd, or an empty string by default.
 
-      ``` bash
+      ```bash
       useradd <name> -s /bin/<shell>
       ```
 
@@ -367,7 +367,7 @@ information for the user(Full Name,Room Number,Work Phone,Home Phone) to store i
 
 To add a group to the system, use the command groupadd/addgroup and syntax as follows :
 
-``` bash
+```bash
     groupadd <group-name>
     addgroup <group-name>
 ```

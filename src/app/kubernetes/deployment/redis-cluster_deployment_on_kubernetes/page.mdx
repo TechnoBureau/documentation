@@ -11,7 +11,7 @@ export const metadata = {
 
 Add below content on configmap.yaml and apply on kubernetes using `kubectl apply -f configmap.yaml`
 
-``` yaml
+```yaml
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -99,7 +99,7 @@ data:
 
 Add below content on scripts-configmap.yaml and apply on kubernetes using `kubectl apply -f scripts-configmap.yaml`
 
-``` yaml
+```yaml
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -176,7 +176,7 @@ data:
 ## Headless Service
 
 
-``` yaml
+```yaml
 ---
 apiVersion: v1
 kind: Service
@@ -206,7 +206,7 @@ spec:
 
 ## Secret Store
 
-``` yaml
+```yaml
 ---
 apiVersion: v1
 kind: Secret
@@ -225,7 +225,7 @@ data:
 
 ## Redis Service
 
-``` yaml
+```yaml
 ---
 apiVersion: v1
 kind: Service
@@ -253,7 +253,7 @@ spec:
 
 ## StatefulSet Deployment
 
-``` yaml
+```yaml
 ---
 apiVersion: apps/v1
 kind: StatefulSet

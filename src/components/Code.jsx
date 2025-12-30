@@ -278,6 +278,9 @@ function useTabGroupProps(availableLanguages) {
 const CodeGroupContext = createContext(false)
 
 export function CodeGroup({ children, title, ...props }) {
+  let validChildren = Children.toArray(children).filter(isValidElement)
+  children = validChildren.length === 1 ? validChildren[0] : validChildren
+
   let languages =
     Children.map(children, (child) =>
       getPanelTitle(isValidElement(child) ? child.props : {}),

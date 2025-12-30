@@ -28,7 +28,7 @@ To configure MySQL Server for replication, add the following configuration under
 
 <CodeGroup tag="MySQL Config" label="Configure MYSQL Cluster">
 
-    ``` bash {{ title: 'MySQL1' }}
+    ```bash {{ title: 'MySQL1' }}
     [mysqld]
 
     bind-address        = 192.168.0.1
@@ -44,7 +44,7 @@ To configure MySQL Server for replication, add the following configuration under
     auto-increment-offset = 1
     ```
 
-    ``` bash {{ title: 'MySQL2' }}
+    ```bash {{ title: 'MySQL2' }}
     [mysqld]
 
     bind-address        = 192.168.0.2
@@ -67,12 +67,12 @@ Next, we need to create a replica user on each server to establish replication. 
 
 <CodeGroup tag="MySQL" label="Setting up Replication">
 
-    ``` bash {{ title: 'MySQL1' }}
+    ```bash {{ title: 'MySQL1' }}
     mysql -uroot -p -e "GRANT REPLICATION SLAVE ON *.* TO 'replicauser'@'192.168.0.2' IDENTIFIED BY 'replica';"
     mysql -uroot -p -e "FLUSH PRIVILEGES;"
     ```
 
-    ``` bash {{ title: 'MySQL2' }}
+    ```bash {{ title: 'MySQL2' }}
     mysql -uroot -p -e "GRANT REPLICATION SLAVE ON *.* TO 'replicauser'@'192.168.0.1' IDENTIFIED BY 'replica';"
     mysql -uroot -p -e "FLUSH PRIVILEGES;"
     ```
@@ -84,11 +84,11 @@ After creating the replica user, restart the MariaDB service on both servers to 
 
 <CodeGroup tag="BASH" label="Restart MariaDB Service">
 
-    ``` bash {{ title: 'MySQL1' }}
+    ```bash {{ title: 'MySQL1' }}
     systemctl restart mariadb
     ```
 
-    ``` bash {{ title: 'MySQL2' }}
+    ```bash {{ title: 'MySQL2' }}
     systemctl restart mariadb
     ```
 </CodeGroup>
@@ -99,13 +99,13 @@ Now, we need to configure slave replication on both servers. Execute the followi
 
 <CodeGroup tag="MySQL" label="Configure Slave Replication">
 
-    ``` sql {{ title: 'MySQL1' }}
+    ```sql {{ title: 'MySQL1' }}
     STOP SLAVE;
     CHANGE MASTER TO master_host='192.168.0.2', master_port=3306, master_user='replicauser', master_password='replica', master_log_file='mysql-bin.000004', master_log_pos=3532;
     START SLAVE;
     ```
 
-    ``` sql {{ title: 'MySQL2' }}
+    ```sql {{ title: 'MySQL2' }}
     STOP SLAVE;
     CHANGE MASTER TO master_host='192.168.0.1', master_port=3306, master_user='replicauser', master_password='replica', master_log_file='mysql-bin.000002', master_log_pos=531;
     START SLAVE;

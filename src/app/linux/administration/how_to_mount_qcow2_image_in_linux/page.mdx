@@ -26,19 +26,19 @@ Follow these steps to mount a qcow2 disk image on your host server:
 
 1. Enable NBD (Network Block Device) on the host server by running the following command:
 
-    ``` bash
+    ```bash
     modprobe nbd max_part=8
     ```
 
 2. Connect the qcow2 disk image file as a network block device using the qemu-nbd command. Replace /path/to/image.qcow2 with the actual path to your qcow2 disk image file:
 
-    ``` bash
+    ```bash
     qemu-nbd --connect=/dev/nbd0 /path/to/image.qcow2
     ```
 
 3. Identify the partitions within the virtual machine disk image by running the fdisk command:
 
-    ``` bash
+    ```bash
     fdisk /dev/nbd0 -l
     ```
 
@@ -46,7 +46,7 @@ Follow these steps to mount a qcow2 disk image on your host server:
 
 4. Choose the partition you want to mount from the virtual machine disk image. For example, to mount the first partition (usually /dev/nbd0p1), create a mount point directory (e.g., /mnt/somepoint) and run the following command:
 
-    ``` bash
+    ```bash
     mount /dev/nbd0p1 /mnt/somepoint/
     ```
 
@@ -54,38 +54,38 @@ Follow these steps to mount a qcow2 disk image on your host server:
 
     * Load the dm-mod kernel module by running the command
 
-        ``` bash
+        ```bash
         modprobe dm-mod
         ```
 
     * Use the **vgdisplay** command to obtain the UUID of the volume group (VG), and then execute the **vgrename** command to rename it
 
-        ``` bash
+        ```bash
         vgdisplay
         vgrename vg_UUID new_vgname
         ```
 
     * Mount the LVM physical volume (PV) to the mount point using the new VG name
 
-        ``` bash
+        ```bash
         mount /dev/new_vgname/root /mnt/
         ```
 
 5. Once you have finished working with the mounted partition, unmount it by running the following command:
 
-    ``` bash
+    ```bash
     umount /mnt/somepoint/
     ```
 
 6. Disconnect the qcow2 disk image from the network block device by running the following command:
 
-    ``` bash
+    ```bash
     qemu-nbd --disconnect /dev/nbd0
     ```
 
 7. If you no longer need the NBD module, unload it from the kernel by running the following command:
 
-    ``` bash
+    ```bash
     rmmod nbd
     ```
 

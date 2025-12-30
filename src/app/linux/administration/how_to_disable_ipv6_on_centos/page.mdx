@@ -16,26 +16,26 @@ IPv6 is the next-generation internet protocol that provides a larger address spa
 1. Open the sysctl configuration file /etc/sysctl.d/90-ipv6.conf using the following command:
 
 
-    ``` bash
+    ```bash
     vi /etc/sysctl.d/90-ipv6.conf
     ```
 
 2. Add the following lines to the file and save it:
 
-    ``` bash
+    ```bash
     net.ipv6.conf.all.disable_ipv6 = 1
     net.ipv6.conf.default.disable_ipv6 = 1
     ```
 
 3. Apply the changes by running the following command:
 
-    ``` bash
+    ```bash
     sysctl --load /etc/sysctl.d/90-ipv6.conf
     ```
 
 4. To verify that IPv6 is disabled, use the following command:
 
-    ``` bash
+    ```bash
     ip a | grep inet6
     ```
 
@@ -49,33 +49,33 @@ IPv6 is the next-generation internet protocol that provides a larger address spa
 
 1. Open the default GRUB configuration file **`/etc/default/grub`** using the following command:
 
-    ``` bash
+    ```bash
     vi /etc/default/grub
     ```
 
 2. Locate the line that begins with **`GRUB_CMDLINE_LINUX`** and append **`ipv6.disable=1`** to the existing parameters. The line should look like this:
 
-    ``` bash
+    ```bash
     GRUB_CMDLINE_LINUX="$GRUB_CMDLINE_LINUX ipv6.disable=1"
     ```
 
 3. Save and exit the configuration file.
 4. Update the GRUB configuration files by running the following commands:
 
-    ``` bash
+    ```bash
     grub2-mkconfig -o /boot/grub2/grub.cfg
     grub2-mkconfig -o /boot/efi/EFI/centos/grub.cfg
     ```
 
 5. Reboot your CentOS machine for the changes to take effect:
 
-    ``` bash
+    ```bash
     reboot
     ```
 
 6. After the reboot, use the following command to verify whether IPv6 is disabled:
 
-    ``` bash
+    ```bash
     ip a | grep inet6
     ```
 
