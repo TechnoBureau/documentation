@@ -12,8 +12,9 @@ import { create } from 'zustand'
 
 import { Header } from '@/components/Header'
 import { Navigation } from '@/components/Navigation'
+import { useSidebarStore } from '@/hooks/useSidebarStore'
 
-function MenuIcon(props) {
+export function MenuIcon(props) {
   return (
     <svg
       viewBox="0 0 10 9"
@@ -27,7 +28,7 @@ function MenuIcon(props) {
   )
 }
 
-function XIcon(props) {
+export function XIcon(props) {
   return (
     <svg
       viewBox="0 0 10 9"
@@ -87,8 +88,12 @@ export const useMobileNavigationStore = create()((set) => ({
 
 export function MobileNavigation() {
   let isInsideMobileNavigation = useIsInsideMobileNavigation()
-  let { isOpen, toggle, close } = useMobileNavigationStore()
-  let ToggleIcon = isOpen ? XIcon : MenuIcon
+  let { isOpen: mobileNavIsOpen, toggle: toggleMobileNav, close: closeMobileNav } = useMobileNavigationStore()
+  let { isOpen: sidebarIsOpen, toggle: toggleSidebar } = useSidebarStore()
+
+  // The toggle button icon reflects BOTH states
+  let isAnyOpen = mobileNavIsOpen || sidebarIsOpen
+  let ToggleIcon = isAnyOpen ? XIcon : MenuIcon
 
   return (
     <IsInsideMobileNavigationContext.Provider value={true}>
@@ -96,14 +101,20 @@ export function MobileNavigation() {
         type="button"
         className="relative flex size-6 items-center justify-center rounded-md transition hover:bg-zinc-900/5 dark:hover:bg-white/5"
         aria-label="Toggle navigation"
-        onClick={toggle}
+        onClick={() => {
+          if (window.innerWidth >= 1024) {
+            toggleSidebar()
+          } else {
+            toggleMobileNav()
+          }
+        }}
       >
         <span className="absolute size-12 pointer-fine:hidden" />
         <ToggleIcon className="w-2.5 stroke-zinc-900 dark:stroke-white" />
       </button>
       {!isInsideMobileNavigation && (
         <Suspense fallback={null}>
-          <MobileNavigationDialog isOpen={isOpen} close={close} />
+          <MobileNavigationDialog isOpen={mobileNavIsOpen} close={closeMobileNav} />
         </Suspense>
       )}
     </IsInsideMobileNavigationContext.Provider>

@@ -10,7 +10,7 @@ class RebrandingTool:
     def resolve_path(self, path):
         return os.path.join(self.root_dir, path)
 
-    def replace_in_file(self, file_path, search_pattern, replacement, flags=0, skip_hint=None):
+    def replace_in_file(self, file_path, search_pattern, replacement, flags=re.DOTALL, skip_hint=None):
         path = self.resolve_path(file_path)
         if not os.path.exists(path):
             print(f"Warning: File {file_path} not found.")
@@ -19,7 +19,7 @@ class RebrandingTool:
         with open(path, 'r') as f:
             content = f.read()
 
-        # Idempotency check
+        # Idempotency check: if hint (or first non-empty line of replacement) is in file, skip
         hint = skip_hint if skip_hint else (replacement.split('\n')[0].strip() if replacement.strip() else None)
         if hint and hint in content:
             print(f"Skipping {file_path} - replacement (hint: '{hint}') already present.")
@@ -43,7 +43,6 @@ class RebrandingTool:
             for file in files:
                 if file.endswith(('.js', '.jsx', '.ts', '.tsx', '.css', '.md', '.mdx', '.json')):
                     file_path = os.path.relpath(os.path.join(root, file), self.root_dir)
-                    # Don't use skip_hint for global recursive replacements to allow multiple occurrences
                     self._simple_replace(file_path, search, replace)
 
     def _simple_replace(self, file_path, search, replace):
@@ -95,7 +94,7 @@ class RebrandingTool:
         if new_content != content:
             with open(path, 'w') as f:
                 f.write(new_content)
-            print(f"Updated {file_path} (deleted block {start_pattern} to {end_pattern})")
+            print(f"Updated {file_path} (deleted block)")
 
     def comment_block(self, file_path, start_pattern, end_pattern):
         path = self.resolve_path(file_path)
@@ -159,8 +158,7 @@ Unlock the full potential of container orchestration with our in-depth coverage 
 TechnoBureau is dedicated to supporting your career advancement in the Linux and DevOps domains. Our comprehensive guides, career-focused articles, and expert advice offer practical insights and strategies to help you achieve your professional goals. Whether you're aiming to land your dream job, enhance your technical skills, or transition into a DevOps role, TechnoBureau provides the guidance and resources you need to succeed.
 """)
 
-    tool.write_file('src/components/Logo.jsx', """
-export function Logo(props) {
+    tool.write_file('src/components/Logo.jsx', """export function Logo(props) {
   return (
     <svg viewBox="0 0 129 24" aria-hidden="true" {...props}>
       <g>
@@ -202,49 +200,110 @@ export const useSidebarStore = create()((set) => ({
     tool.delete_line("src/components/mdx.jsx", r"import { Feedback } from '@/components/Feedback'")
     tool.delete_line("src/components/mdx.jsx", r"<Feedback />")
 
-    # Header.jsx - Navigation links and Layout
-    tool.delete_line("src/components/Header.jsx", r"import { Button } from '@/components/Button'")
-    tool.delete_block("src/components/Header.jsx", '<div className="hidden min-[416px]:contents">', '</div>')
-    tool.comment_block("src/components/Header.jsx", '<nav className="hidden md:block">', '</nav>')
-    
-    # Custom Sidebar & Unified Header Logic (rebrand_custom.py)
+    # Header.jsx - Robust Structural Swap
     header_path = 'src/components/Header.jsx'
-    tool.replace_in_file(header_path,
-        r"import { CloseButton } from '@headlessui/react'",
-        "import { CloseButton } from '@headlessui/react'\nimport { useSidebarStore } from '@/hooks/useSidebarStore'")
-    tool.replace_in_file(header_path,
-        r"let { isOpen: mobileNavIsOpen, toggle: toggleMobileNav } = useMobileNavigationStore\(\)",
-        "let { isOpen: mobileNavIsOpen, toggle: toggleMobileNav } = useMobileNavigationStore()\n  let { isOpen: sidebarIsOpen, toggle: toggleSidebar } = useSidebarStore()")
-    tool.replace_in_file(header_path,
-        r"'fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between gap-12 px-4 transition.*?sm:px-6 lg:left-0 lg:px-8',", # Base pattern
-        "'fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between gap-12 px-4 transition-all duration-300 sm:px-6 lg:px-8',",
-        flags=re.DOTALL, skip_hint="transition-all duration-300")
+    tool.delete_line(header_path, r"import { Button } from '@/components/Button'")
+    tool.delete_block(header_path, '<div className="hidden min-[416px]:contents">', '</div>')
+    tool.comment_block(header_path, '<nav className="hidden md:block">', '</nav>')
     
-    # Swap Logo and Toggle
     tool.replace_in_file(header_path,
-        r'<div className="flex items-center gap-5">\s+<MobileNavigation />\s+<Link href="/" aria-label="Home">\s+<Logo className="h-6" />\s+</Link>\s+<Search />\s+</div>',
+        r"import \{\s+MobileNavigation,.*?\} from '@\/components\/MobileNavigation'",
+        """import {
+  MobileNavigation,
+  useIsInsideMobileNavigation,
+  useMobileNavigationStore,
+} from '@/components/MobileNavigation'""", skip_hint="import { MobileNavigation, useIsInsideMobileNavigation")
+    
+    tool.replace_in_file(header_path,
+        r"import \{ ThemeToggle \} from '@\/components\/ThemeToggle'",
+        "import { ThemeToggle } from '@/components/ThemeToggle'",
+        skip_hint="import { ThemeToggle }")
+
+    tool.replace_in_file(header_path,
+        r"let \{ isOpen: mobileNavIsOpen,.*?\} = useMobileNavigationStore\(\)",
+        "let { isOpen: mobileNavIsOpen } = useMobileNavigationStore()",
+        skip_hint="let { isOpen: mobileNavIsOpen } = useMobileNavigationStore()")
+
+    tool.delete_line(header_path, r"let \{ isOpen: sidebarIsOpen,.*?\} = useSidebarStore\(\)")
+    tool.delete_line(header_path, r"let ToggleIcon = .*Icon")
+
+    # Frozen Header ClassNames
+    tool.replace_in_file(header_path,
+        r"className=\{clsx\(\s+className,\s+'fixed inset-x-0 top-0 z-50.*?px-8',",
+        "className={clsx(\n        className,\n        'fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between gap-12 px-4 transition-all duration-300 sm:px-6 lg:px-8',",
+        skip_hint="transition-all duration-300")
+    
+    tool.replace_in_file(header_path,
+        r"!isInsideMobileNavigation &&.*?isInsideMobileNavigation",
+        "!isInsideMobileNavigation && 'backdrop-blur-xs dark:backdrop-blur-sm',\n        isInsideMobileNavigation",
+        skip_hint="backdrop-blur-xs dark:backdrop-blur-sm")
+
+    # Logo/Toggle Swap
+    tool.replace_in_file(header_path,
+        r'(<Search />\s+)?<div className="flex items-center gap-5 lg:hidden">.*?<Logo.*?/>.*?</CloseButton>\s+</div>(\s+<Search />)?',
         """<div className="flex flex-auto items-center gap-5">
         <Link href="/" aria-label="Home">
           <Logo className="h-6" />
         </Link>
         <MobileNavigation />
         <Search />
-      </div>""", flags=re.DOTALL)
+      </div>""", skip_hint="<div className=\"flex flex-auto items-center gap-5\">")
 
-    # Layout.jsx - Massive structural swap
+    # MobileNavigation.jsx - Comprehensive fix
+    mob_nav_path = 'src/components/MobileNavigation.jsx'
+    tool.replace_in_file(mob_nav_path,
+        r"function MenuIcon\(props\) \{", "export function MenuIcon(props) {", skip_hint="export function MenuIcon")
+    tool.replace_in_file(mob_nav_path,
+        r"function XIcon\(props\) \{", "export function XIcon(props) {", skip_hint="export function XIcon")
+    tool.replace_in_file(mob_nav_path,
+        r"import \{ Navigation \} from '@\/components\/Navigation'",
+        "import { Navigation } from '@/components/Navigation'\nimport { useSidebarStore } from '@/hooks/useSidebarStore'",
+        skip_hint="import { useSidebarStore } from '@/hooks/useSidebarStore'")
+    
+    tool.replace_in_file(mob_nav_path,
+        r"let \{ isOpen, toggle, close \} = useMobileNavigationStore\(\)",
+        """let { isOpen: mobileNavIsOpen, toggle: toggleMobileNav, close: closeMobileNav } = useMobileNavigationStore()
+  let { isOpen: sidebarIsOpen, toggle: toggleSidebar } = useSidebarStore()
+
+  // The toggle button icon reflects BOTH states
+  let isAnyOpen = mobileNavIsOpen || sidebarIsOpen
+  let ToggleIcon = isAnyOpen ? XIcon : MenuIcon""", skip_hint="// The toggle button icon reflects BOTH states")
+
+    tool.replace_in_file(mob_nav_path,
+        r"isOpen=\{isOpen\} close=\{close\}",
+        "isOpen={mobileNavIsOpen} close={closeMobileNav}",
+        skip_hint="isOpen={mobileNavIsOpen} close={closeMobileNav}")
+
+    tool.replace_in_file(mob_nav_path,
+        r"onClick=\{toggle\}",
+        """onClick={() => {
+          if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+            toggleSidebar()
+          } else {
+            toggleMobileNav()
+          }
+        }}""", skip_hint="if (typeof window !== 'undefined' && window.innerWidth >= 1024)")
+
+    # Layout.jsx - Structural swap
     layout_path = 'src/components/Layout.jsx'
     tool.replace_in_file(layout_path,
-        r"import { useMobileNavigationStore } from '@/components/MobileNavigation'",
-        "import { useMobileNavigationStore } from '@/components/MobileNavigation'\nimport { useSidebarStore } from '@/hooks/useSidebarStore'")
+        r"import \{ motion \} from 'framer-motion'",
+        "import clsx from 'clsx'\nimport { motion } from 'framer-motion'",
+        skip_hint="import clsx from 'clsx'")
+
     tool.replace_in_file(layout_path,
-        r"let { isOpen } = useSidebarStore\(\)",
-        "let { isOpen } = useSidebarStore()") # Just to ensure it's there
+        r"import \{ usePathname \} from 'next\/navigation'",
+        "import { usePathname } from 'next/navigation'\nimport { useSidebarStore } from '@/hooks/useSidebarStore'",
+        skip_hint="import { useSidebarStore } from '@/hooks/useSidebarStore'")
     
     tool.replace_in_file(layout_path,
-        r'return \(\s+<SectionProvider sections={allSections\[pathname\] \?\? \[\]}>\s+<div\s+className="group relative h-full".*?</SectionProvider>\s+\)',
-        """return (
-    <SectionProvider sections={allSections[pathname] ?? []}>
-      <div
+        r"let pathname = usePathname\(\)",
+        "let pathname = usePathname()\n  let { isOpen } = useSidebarStore()",
+        skip_hint="let { isOpen } = useSidebarStore()")
+
+    tool.replace_in_file(layout_path,
+        r'<div className="h-full lg:ml-72 xl:ml-80">.*?</div>\s+</SectionProvider>',
+        """<div
         className="group relative flex flex-auto flex-col"
         data-sidebar-collapsed={!isOpen ? '' : undefined}
       >
@@ -266,24 +325,16 @@ export const useSidebarStore = create()((set) => ({
           </div>
         </div>
       </div>
-    </SectionProvider>
-  )""", flags=re.DOTALL, skip_hint="data-sidebar-collapsed")
+    </SectionProvider>""", skip_hint="data-sidebar-collapsed")
 
-    # Navigation.jsx - Links and Nested Nav logic from rebranding.sh
+    # Navigation.jsx logic
     nav_path = 'src/components/Navigation.jsx'
-    tool.replace_in_file(nav_path, r"{ title: 'Quickstart', href: '/quickstart' },", "{ title: 'DevOps', href: '/devops' },")
-    tool.replace_in_file(nav_path, r"{ title: 'SDKs', href: '/sdks' },", "{ title: 'Kubernetes', href: '/kubernetes' },")
-    tool.replace_in_file(nav_path, r"{ title: 'Authentication', href: '/authentication' },", "{ title: 'Linux', href: '/linux' },\n      { title: 'Career', href: '/career' },")
-    tool.replace_in_file(nav_path, r"{ title: 'Contacts', href: '/contacts' },", "{ title: 'Airflow', href: '/airflow' },")
-    tool.replace_in_file(nav_path, r"{ title: 'Conversations', href: '/conversations' },", "{ title: 'Ansible', href: '/ansible' },")
+    tool.replace_in_file(nav_path, r"\{ title: 'Quickstart', href: '/quickstart' \},", "{ title: 'DevOps', href: '/devops' },")
+    tool.replace_in_file(nav_path, r"\{ title: 'SDKs', href: '/sdks' \},", "{ title: 'Kubernetes', href: '/kubernetes' },")
+    tool.replace_in_file(nav_path, r"\{ title: 'Authentication', href: '/authentication' \},", "{ title: 'Linux', href: '/linux' },\n      { title: 'Career', href: '/career' },")
     
-    to_delete_nav = ["Pagination", "Errors", "Webhooks", "Messages", "Groups", "Attachments"]
-    for item in to_delete_nav:
-        tool.delete_line(nav_path, f"{{ title: '{item}', href: '/{item.lower()}' }},")
-
-    # ActivePageMarker and Nested Nav (Complex Logic from commit 9e2e635)
     tool.replace_in_file(nav_path,
-        r'let activePageIndex = group.links.findIndex\(\(link\) => link.href === pathname\)\s+let top = offset \+ activePageIndex \* itemHeight',
+        r'let activePageIndex = group.links.findIndex.*?let top = offset .*? itemHeight',
         """  // Use the same absolute index calculation as VisibleSectionHighlight
   let absoluteIndex = 0
   let targetIndex = 0
@@ -304,31 +355,10 @@ export const useSidebarStore = create()((set) => ({
       }
     }
   }
-  let top = offset + targetIndex * itemHeight""", flags=re.DOTALL)
+  let top = offset + targetIndex * itemHeight""", skip_hint="let targetIndex = 0")
 
     tool.replace_in_file(nav_path,
-        r'group\.links\.findIndex\(\(link\) => link\.href === pathname\) !== -1',
-        'group.links.findIndex((link) => link.href === pathname || (link.links && link.links.some(sublink => sublink.href === pathname))) !== -1')
-
-    tool.replace_in_file(nav_path,
-        r'\{link\.title\}\s+<\/NavLink>',
-        """{link.title}
-              </NavLink>
-              {link.links && (
-                <ul role="list" className="ml-4">
-                  {link.links.map((sublink) => (
-                    <motion.li key={sublink.href} layout="position" className="relative">
-                      <NavLink href={sublink.href} active={sublink.href === pathname}>
-                        {sublink.title}
-                      </NavLink>
-                    </motion.li>
-                  ))}
-                </ul>
-              )}""", flags=re.DOTALL, skip_hint="link.links.map")
-
-    # NavLink Component Fix (useSidebarStore + Link closure)
-    tool.replace_in_file(nav_path,
-        r'function NavLink\({.*?}\) {.*?let isInsideMobileNavigation = useIsInsideMobileNavigation\(\).*?let Component = isInsideMobileNavigation \? CloseButton : Link.*?return \(.*?<Component.*?href={href}.*?>(.*?)</Component>.*?\(.*?\)',
+        r'function NavLink\({.*?}\) \{.*?return \(.*?<Component.*?>(.*?)</Component>.*?\(.*?\)',
         """function NavLink({
   href,
   children,
@@ -363,17 +393,13 @@ export const useSidebarStore = create()((set) => ({
       )}
     </Component>
   )
-}""", flags=re.DOTALL, skip_hint="window.innerWidth < 1024")
+}""", skip_hint="window.innerWidth < 1024")
 
-    # Search.jsx - Width and Mobile closure
+    # Width expansions
     tool.replace_in_file('src/components/Search.jsx', r'lg:max-w-md lg:flex-auto', 'lg:max-w-2xl lg:flex-auto')
-
-    # Footer.jsx - Max width expansion
     tool.replace_in_file('src/components/Footer.jsx',
         r'footer className="mx-auto w-full max-w-2xl space-y-10 pb-2 lg:max-w-5xl"',
         'footer className="mx-auto w-full max-w-2xl space-y-10 pb-2 lg:max-w-5xl group-data-sidebar-collapsed:lg:max-w-7xl"')
-
-    # Typography fix
     tool.replace_in_file('typography.js', r"fontSize: theme\('fontSize.2xs'\),", r"fontSize: theme('fontSize.2xs')[0],")
 
     print("\nRebranding complete!")
