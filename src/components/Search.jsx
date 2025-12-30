@@ -269,7 +269,7 @@ const SearchInput = forwardRef(function SearchInput(
   )
 })
 
-function SearchDialog({ open, setOpen, className, onNavigate = () => {} }) {
+function SearchDialog({ open, setOpen, className, onNavigate = () => { } }) {
   let formRef = useRef(null)
   let panelRef = useRef(null)
   let inputRef = useRef(null)
@@ -396,7 +396,7 @@ export function Search() {
   }, [])
 
   return (
-    <div className="hidden lg:block lg:max-w-md lg:flex-auto">
+    <div className="hidden lg:block lg:max-w-2xl lg:flex-auto">
       <button
         type="button"
         className="hidden h-8 w-full items-center gap-2 rounded-full bg-white pr-3 pl-2 text-sm text-zinc-500 ring-1 ring-zinc-900/10 transition hover:ring-zinc-900/20 lg:flex dark:bg-white/5 dark:text-zinc-400 dark:ring-white/10 dark:ring-inset dark:hover:ring-white/20"

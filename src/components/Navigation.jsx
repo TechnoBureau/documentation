@@ -39,10 +39,16 @@ function NavLink({
   active = false,
   isAnchorLink = false,
 }) {
+  let isInsideMobileNavigation = useIsInsideMobileNavigation()
+  // Safety check: even if the context says we are inside mobile navigation, 
+  // if we are on a large screen, assume we are in the desktop sidebar.
+  let isMobile = isInsideMobileNavigation && typeof window !== 'undefined' && window.innerWidth < 1024
+  let Component = isMobile ? CloseButton : Link
+
   return (
-    <CloseButton
-      as={Link}
+    <Component
       href={href}
+      {...(isMobile ? { as: Link } : {})}
       aria-current={active ? 'page' : undefined}
       className={clsx(
         'flex justify-between gap-2 py-1 pr-3 text-sm transition',
@@ -58,7 +64,7 @@ function NavLink({
           {tag}
         </Tag>
       )}
-    </CloseButton>
+    </Component>
   )
 }
 
@@ -161,7 +167,7 @@ function NavigationGroup({ group, className }) {
         {group.title}
       </motion.h2>
       <div className="relative mt-3 pl-2">
-        <AnimatePresence initial={!isInsideMobileNavigation}>
+        <AnimatePresence initial={false}>
           {isActiveGroup && (
             <VisibleSectionHighlight group={group} pathname={pathname} />
           )}

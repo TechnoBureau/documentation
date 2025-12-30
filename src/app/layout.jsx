@@ -67,7 +67,7 @@ export default async function RootLayout({ children }) {
     <html lang="en" className="h-full" suppressHydrationWarning>
       <body className="flex min-h-full bg-white antialiased dark:bg-zinc-900">
         <Providers>
-          <div className="w-full">
+          <div className="flex min-h-full w-full flex-col">
             <HeroPattern />
             <Layout allSections={allSections}>{children}</Layout>
           </div>
