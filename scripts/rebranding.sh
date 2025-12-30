@@ -159,3 +159,96 @@ export function Logo(props) {
   );
 }
 EOF
+
+## Apply changes from commit 9e2e635
+
+NAV_FILE="src/components/Navigation.jsx"
+
+# 1. Update ActivePageMarker logic
+# Replace the simple activePageIndex calculation with the nested loop logic
+# We use a unique marker line from the original code to start the replacement block
+MATCH_START="let activePageIndex = group.links.findIndex((link) => link.href === pathname)"
+MATCH_END="let top = offset + activePageIndex \* itemHeight"
+
+# Since the block spans multiple lines in replacement, we can use sed to replace the single line with the multi-line block using escaped newlines.
+# Note: Using a temporary file or perl might be cleaner for multi-line, but strict sed/awk was requested.
+# We will use a unique sentinel replacement strategy or simply delete and insert.
+
+# Delete the old lines
+sed -i '' "/${MATCH_START}/d" "$NAV_FILE"
+sed -i '' "/${MATCH_END}/d" "$NAV_FILE"
+
+# Insert the new logic before the return statement of ActivePageMarker
+# Finding a safe insertion point: "let offset = remToPx(0.25)" is just above the logic
+sed -i '' "/let offset = remToPx(0.25)/a\\
+  // Use the same absolute index calculation as VisibleSectionHighlight\\
+  let absoluteIndex = 0\\
+  let targetIndex = 0\\
+\\
+  for (let i = 0; i < group.links.length; i++) {\\
+    const link = group.links[i]\\
+    if (link.href === pathname) {\\
+      targetIndex = absoluteIndex\\
+    }\\
+    absoluteIndex++\\
+\\
+    if (link.links) {\\
+      for (let j = 0; j < link.links.length; j++) {\\
+        if (link.links[j].href === pathname) {\\
+          targetIndex = absoluteIndex\\
+        }\\
+        absoluteIndex++\\
+      }\\
+    }\\
+  }\\
+  //let activePageIndex = group.links.findIndex((link) => link.href === pathname)\\
+  let top = offset + targetIndex * itemHeight\\
+" "$NAV_FILE"
+
+
+# 2. Update isActiveGroup logic
+# Search for: group.links.findIndex((link) => link.href === pathname) !== -1
+OLD_IS_ACTIVE="group.links.findIndex((link) => link.href === pathname) !== -1"
+# We need to escape special characters for sed
+ESCAPED_OLD_IS_ACTIVE="group\.links\.findIndex((link) => link\.href === pathname) !== -1"
+
+# We'll use a unique identifier to replace this line completely.
+sed -i '' "s/${ESCAPED_OLD_IS_ACTIVE}/group.links.findIndex((link) => link.href === pathname || (link.links \&\& link.links.some(sublink => sublink.href === pathname))) !== -1/" "$NAV_FILE"
+
+
+# 3. Add nested link rendering
+# We need to insert the sublink <ul> block after the <NavLink> component for the main link.
+# Pattern to find: <NavLink href={link.href} active={link.href === pathname}>\n                {link.title}\n              </NavLink>
+# This is tricky with sed due to newlines. We can target the closing Tag </NavLink> inside NavigationGroup map loop.
+# A more robust anchor might be specific to where it is used.
+# The code context is:
+# <NavLink href={link.href} active={link.href === pathname}>
+#   {link.title}
+# </NavLink>
+# <HERE>
+
+# We can match `</NavLink>` and check if the next line is `AnimatePresence` or just blindly insert after `</NavLink>` (risky if used elsewhere).
+# Inspection of Navigation.jsx shows `NavLink` is used in `NavigationGroup` and `TopLevelNavItem`.
+# In `NavigationGroup`, it follows `{link.title}`.
+
+# Let's insert after `{link.title}` line + `</NavLink>` line.
+# Or simpler: Search for specific block structure.
+# sed command to append after the specific closing NavLink tag that is inside the loop.
+# It's inside `{group.links.map((link) => (` ...
+
+# Anchor: "{link.title}" line.
+sed -i '' "/{link.title}/!b;n;a\\
+              {link.links \&\& (\\
+                <ul role=\"list\" className=\"ml-4\">\\
+                  {link.links.map((sublink) => (\\
+                    <motion.li key={sublink.href} layout=\"position\" className=\"relative\">\\
+                      <NavLink href={sublink.href} active={sublink.href === pathname}>\\
+                        {sublink.title}\\
+                      </NavLink>\\
+                    </motion.li>\\
+                  ))}\\
+                </ul>\\
+              )}\\
+" "$NAV_FILE"
+
+echo "Applied nested navigation changes via sed."
