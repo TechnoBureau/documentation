@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'Snooze: Ultra-Minimal Webserver for Kubernetes | Testing & Debugging',
+  title: 'Snooze Ultra Minimal Webserver for Kubernetes',
   keywords: 'snooze,ultra-minimal-webserver,tiny-webserver,placeholder-service,reverse-proxy-mode,container-ready,Kubernetes,kubernetes-testing,microservices-placeholder,service-mesh-testing,kubernetes-networking,http-server,lightweight-server,json-logging,kubernetes-deployment,docker-container,k8s-testing,development-server,ci-cd-testing,istio-integration,network-policy,kubernetes-debugging,load-balancer-testing,health-check-endpoint,proxy-logging,ghcr-container,alpine-linux,cloud-native,devops-tools',
   author: 'Ganapathi Chidambaram',
   date: '2025-12-31',
@@ -8,7 +8,7 @@ export const metadata = {
 }
 
 
-# Snooze: Ultra-Minimal Webserver for Kubernetes
+# Snooze - Ultra-Minimal Webserver for Kubernetes
 
 ## Overview
 
@@ -46,7 +46,7 @@ Before deploying Snooze to your Kubernetes cluster, ensure you have:
 
 ## Quick Start
 
-### 1. Minimal Deployment
+### Minimal Deployment
 
 The simplest way to deploy Snooze with default settings:
 
@@ -184,7 +184,7 @@ Snooze operates on a simple yet effective architecture:
 
 ## Real-World Usage Scenarios
 
-### Scenario 1: Microservices Development Placeholder
+### Microservices Development Placeholder
 
 **Problem**: Your team is building a microservices architecture with 12 services. Only 3 are ready, but you need to test service discovery.
 
@@ -223,7 +223,7 @@ spec:
 - Verify network policies before real services deploy
 - Enable frontend team to continue development
 
-### Scenario 2: Debugging Ingress Routing Issues
+### Debugging Ingress Routing Issues
 
 **Problem**: Complex ingress configuration with multiple paths isn't routing correctly.
 
@@ -232,7 +232,7 @@ spec:
 ```bash
 # Deploy three instances with distinct messages
 kubectl apply -f snooze-red.yaml    # Returns "RED"
-kubectl apply -f snooze-green.yaml  # Returns "GREEN"  
+kubectl apply -f snooze-green.yaml  # Returns "GREEN"
 kubectl apply -f snooze-blue.yaml   # Returns "BLUE"
 
 # Test routing
@@ -241,7 +241,7 @@ curl https://example.com/api/v2  # Should return "GREEN"
 curl https://example.com/admin   # Should return "BLUE"
 ```
 
-### Scenario 3: Load Balancer Health Checks
+### Load Balancer Health Checks
 
 **Problem**: Need a reliable health check endpoint that always responds 200 OK.
 
@@ -299,7 +299,7 @@ Snooze supports two methods for configuration, with **environment variables taki
 
 ## Deployment Examples
 
-### Example 1: Custom Port and Message (Environment Variables)
+### Custom Port and Message (Environment Variables)
 
 ```yaml
 apiVersion: apps/v1
@@ -347,7 +347,7 @@ spec:
   type: ClusterIP
 ```
 
-### Example 2: Command-Line Flags Override
+### Command-Line Flags Override
 
 ```yaml
 apiVersion: apps/v1
@@ -386,7 +386,7 @@ spec:
   type: ClusterIP
 ```
 
-### Example 3: HTML Content via ConfigMap
+### HTML Content via ConfigMap
 
 Store rich HTML content in a ConfigMap for dynamic responses:
 
@@ -550,7 +550,7 @@ spec:
         image: ghcr.io/technobureau/snooze:latest
         args:
         - "--port=8081"
-        - "--message=🔴 RED Instance"
+        - "--message=RED Instance"
         ports:
         - containerPort: 8081
 ---
@@ -585,7 +585,7 @@ spec:
         image: ghcr.io/technobureau/snooze:latest
         args:
         - "--port=8082"
-        - "--message=🟢 GREEN Instance"
+        - "--message=GREEN Instance"
         ports:
         - containerPort: 8082
 ---
@@ -620,7 +620,7 @@ spec:
         image: ghcr.io/technobureau/snooze:latest
         args:
         - "--port=8083"
-        - "--message=🔵 BLUE Instance"
+        - "--message=BLUE Instance"
         ports:
         - containerPort: 8083
 ---
@@ -675,9 +675,9 @@ Test the ingress:
 
 ```bash
 # Assuming you've configured DNS or /etc/hosts
-curl http://snooze.example.com/red    # Returns: 🔴 RED Instance
-curl http://snooze.example.com/green  # Returns: 🟢 GREEN Instance
-curl http://snooze.example.com/blue   # Returns: 🔵 BLUE Instance
+curl http://snooze.example.com/red    # Returns:  RED Instance
+curl http://snooze.example.com/green  # Returns:  GREEN Instance
+curl http://snooze.example.com/blue   # Returns:  BLUE Instance
 ```
 
 ---
@@ -777,7 +777,7 @@ spec:
 
 ## Best Practices
 
-### 1. Resource Limits
+### Resource Limits
 
 Always set resource requests and limits:
 
@@ -791,7 +791,7 @@ resources:
     cpu: "50m"
 ```
 
-### 2. Security Context
+### Security Context
 
 Run Snooze with a non-root user:
 
@@ -806,7 +806,7 @@ securityContext:
     - ALL
 ```
 
-### 3. Use ConfigMaps for Dynamic Content
+### Use ConfigMaps for Dynamic Content
 
 Store messages in ConfigMaps to update content without rebuilding images:
 
@@ -815,7 +815,7 @@ kubectl create configmap snooze-message --from-literal=message="Updated message"
 kubectl rollout restart deployment/snooze-html
 ```
 
-### 4. Horizontal Pod Autoscaling
+### Horizontal Pod Autoscaling
 
 Scale based on CPU usage:
 
@@ -1264,7 +1264,7 @@ kubectl rollout restart deployment/snooze
 
 **Q: What's the startup time?**
 
-A: Snooze starts in <1 second (cached image). From `kubectl apply` to first successful request typically takes 1-3 seconds.
+A: Snooze starts in less than 1 second (cached image). From `kubectl apply` to first successful request typically takes 1-3 seconds.
 
 **Q: Does Snooze support HTTP/2 or HTTP/3?**
 
@@ -1292,19 +1292,19 @@ kubectl delete -f snooze-deployment.yaml
 
 ## Use Cases
 
-### 1. Testing Kubernetes Networking
+### Testing Kubernetes Networking
 Deploy Snooze to test service discovery, ingress rules, and network policies.
 
-### 2. Placeholder Services
+### Placeholder Services
 Use Snooze as a placeholder while developing microservices.
 
-### 3. Request Logging Proxy
+### Request Logging Proxy
 Monitor and log requests to upstream services for debugging.
 
-### 4. Load Testing Target
+### Load Testing Target
 Create multiple Snooze instances to test load balancer behavior.
 
-### 5. CI/CD Pipeline Testing
+### CI/CD Pipeline Testing
 Deploy Snooze in test environments to validate deployment pipelines.
 
 ---
@@ -1321,8 +1321,14 @@ Deploy Snooze in test environments to validate deployment pipelines.
 Snooze provides a simple yet powerful solution for Kubernetes testing and development. With its ultra-lightweight design, flexible configuration options, and comprehensive logging capabilities, it's an ideal choice for:
 
 - **Development and Testing**: Quick placeholder services
-- **Network Debugging**: Request logging and proxy functionality  
+- **Network Debugging**: Request logging and proxy functionality
 - **Learning Kubernetes**: Simple deployments for educational purposes
 - **CI/CD Pipelines**: Reliable test targets
 
 Start with the minimal deployment and explore advanced configurations as your needs grow. Happy deploying! 💤
+
+## Thanks & Attribution
+
+Thanks to the original Snooze project by spurin — this project [https://github.com/TechnoBureau/snooze](https://github.com/TechnoBureau/snooze) is derived from and inspired by the upstream repository at https://github.com/spurin/snooze with additional functionalities such as proxy support, json logging, headers process. The content here extends the original with Kubernetes-focused examples, deployment manifests, and additional guidance for running Snooze in cloud-native environments.
+
+If you'd like the original project, see: https://github.com/spurin/snooze
