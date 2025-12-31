@@ -243,7 +243,7 @@ export const navigation = [
         title: 'DevOps', href: '/devops',
         links: [
           { title: 'General', href: '/devops/general' },
-          { title: 'CI/CD', href: '/devops/cicd' },
+          { title: 'CI/CD', href: '/devops/ci-cd' },
           { title: 'Terraform', href: '/devops/terraform' },
           // { title: 'Ansible', href: '/devops/ansible' },
         ]
