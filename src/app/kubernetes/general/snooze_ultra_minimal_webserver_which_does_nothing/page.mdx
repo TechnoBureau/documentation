@@ -16,12 +16,12 @@ export const metadata = {
 
 ### Key Features
 
-- **Ultra-Lightweight**: Single-binary server with minimal dependencies
-- **Flexible Configuration**: Override settings via environment variables or command-line flags
-- **Reverse Proxy Mode**: Forward requests to upstream hosts with full logging
-- **Structured JSON Logging**: Easy integration with logging systems
-- **Graceful Shutdown**: Handles SIGINT and SIGTERM signals properly
-- **Container-Ready**: Available as `ghcr.io/technobureau/snooze:latest`
+- **Basic static HTTP response**: Simple, deterministic responses for quick Kubernetes deployment and Ingress testing.
+- **Delay functionality**: Endpoint-based delay (e.g. `/snooze/<n>`) that sleeps ~n seconds before responding — useful for testing timeouts and retry logic.
+- **JSON structured logging**: Logs requests and internal timings as JSON objects to stdout, making them easy to parse with `jq` or log-aggregation tools.
+- **Reverse proxy mode**: Forward to an upstream host while logging full HTTP headers and connection timings for observability and debugging.
+- **Graceful shutdown**: Proper SIGINT/SIGTERM handling for container lifecycle correctness.
+- **Container-ready image**: Small single-binary image available at `ghcr.io/technobureau/snooze:latest`.
 
 ### Default Behavior
 
@@ -730,6 +730,68 @@ Snooze outputs structured JSON logs for easy parsing and aggregation:
   "path": "/health",
   "agent": "kube-probe/1.19"
 }
+```
+
+Expanded logging examples & parsing
+
+- Basic request log fields:
+  - `ts`: timestamp
+  - `level`: log level (info/error)
+  - `module`: logical module (http, proxy)
+  - `time`: request handling duration (seconds)
+  - `method`, `path`, `agent`: HTTP method, request path, and user-agent
+
+- Proxy / delay specific fields (when applicable):
+  - `proxy_host`, `proxy_port`: upstream endpoint
+  - `proxy_connect_time`: TCP/connect latency
+  - `proxy_response_time`: time spent streaming the upstream response
+  - `snoozed_for`: (delay endpoint) number of seconds the server slept before responding
+
+Parsing examples (useful for log-parser tests):
+
+```bash
+# show paths and durations
+kubectl logs deployment/snooze | jq -r '.path + " " + (.time|tostring)'
+
+# filter slow requests (time > 1s)
+kubectl logs deployment/snooze | jq 'select(.time and (.time|tonumber) > 1)'
+
+# extract proxy timings
+kubectl logs deployment/snooze-proxy | jq -r 'select(.proxy_host) | "host=" + .proxy_host + " connect=" + (.proxy_connect_time|tostring) + " resp=" + (.proxy_response_time|tostring)'
+```
+
+Header logging in reverse-proxy mode
+
+When running in proxy mode, Snooze emits common request headers as top-level JSON fields (instead of nesting them). Example log snippet from proxy mode with headers promoted to top-level fields:
+
+```json
+{
+  "ts": "2025-12-31T20:46:37+0000",
+  "level": "info",
+  "module": "proxy",
+  "time": "0.1234",
+  "method": "GET",
+  "path": "/api",
+  "agent": "curl/7.68.0",
+  "proxy_host": "httpbin.org",
+  "proxy_port": 80,
+  "proxy_connect_time": "0.0500",
+  "proxy_response_time": "0.0700",
+  "x-forwarded-for": "10.0.0.1",
+  "user-agent": "curl/7.68.0",
+  "x-request-id": "abcd-1234"
+}
+```
+
+Use these top-level header fields to validate propagation (for tracing/request-id tests) or to assert that ingress/controller rewrites are functioning as expected.
+
+Log parser testing
+
+Because logs are JSON, you can write deterministic unit/integration tests that assert presence/format of fields. Example (bash + jq):
+
+```bash
+# assert that all logs contain a timestamp and method
+kubectl logs deployment/snooze | jq -e 'all(.[]; has("ts") and has("method"))' && echo "ok"
 ```
 
 ### Proxy Mode Logs
