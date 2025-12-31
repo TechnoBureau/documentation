@@ -43,8 +43,9 @@ export function PaginationNext({ href = null, className, children = 'Next' }) {
 }
 
 export function PaginationList({ className, ...props }) {
-  return <span {...props} className={clsx(className, 'hidden items-baseline gap-x-2 sm:flex')} />
+  return <span {...props} className={clsx(className, 'flex items-baseline gap-x-2')} />
 }
+
 
 export function PaginationPage({ href, className, current = false, children }) {
   return (
@@ -55,7 +56,7 @@ export function PaginationPage({ href, className, current = false, children }) {
       aria-current={current ? 'page' : undefined}
       className={clsx(
         className,
-        'min-w-[2.25rem] before:absolute before:-inset-px before:rounded-lg',
+        'relative min-w-[2.25rem] before:absolute before:-inset-px before:rounded-lg',
         current && 'before:bg-zinc-950/5 dark:before:bg-white/10'
       )}
     >

@@ -402,6 +402,20 @@ export const useSidebarStore = create()((set) => ({
         'footer className="mx-auto w-full max-w-2xl space-y-10 pb-2 lg:max-w-5xl group-data-sidebar-collapsed:lg:max-w-7xl"')
     tool.replace_in_file('typography.js', r"fontSize: theme\('fontSize.2xs'\),", r"fontSize: theme('fontSize.2xs')[0],")
 
+    # Button.jsx - Fix plain prop to prevent React warning
+    button_path = 'src/components/Button.jsx'
+    tool.replace_in_file(button_path,
+        r'export function Button\(\{\s+variant = \'primary\',\s+className,\s+children,\s+arrow,\s+\.\.\.props\s+\}\)',
+        """export function Button({
+  variant = 'primary',
+  className,
+  children,
+  arrow,
+  plain, // Destructure plain to prevent it from leaking to props
+  ...props
+})""",
+        skip_hint="plain, // Destructure plain to prevent it from leaking to props")
+
     print("\nRebranding complete!")
 
 if __name__ == "__main__":

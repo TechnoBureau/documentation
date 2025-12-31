@@ -31,10 +31,11 @@ export function Button({
   className,
   children,
   arrow,
+  plain, // Destructure plain to prevent it from leaking to props
   ...props
 }) {
   className = clsx(
-    'inline-flex gap-0.5 justify-center overflow-hidden text-sm font-medium transition',
+    variant !== 'plain' && 'inline-flex gap-0.5 justify-center overflow-hidden text-sm font-medium transition',
     variantStyles[variant],
     className,
   )
@@ -58,7 +59,7 @@ export function Button({
     </>
   )
 
-  if (typeof props.href === 'undefined') {
+  if (props.href === undefined) {
     return (
       <button className={className} {...props}>
         {inner}
