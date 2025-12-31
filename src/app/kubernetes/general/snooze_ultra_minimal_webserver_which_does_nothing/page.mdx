@@ -1,0 +1,1328 @@
+export const metadata = {
+  title: 'Snooze: Ultra-Minimal Webserver for Kubernetes | Testing & Debugging',
+  keywords: 'snooze,ultra-minimal-webserver,tiny-webserver,placeholder-service,reverse-proxy-mode,container-ready,Kubernetes,kubernetes-testing,microservices-placeholder,service-mesh-testing,kubernetes-networking,http-server,lightweight-server,json-logging,kubernetes-deployment,docker-container,k8s-testing,development-server,ci-cd-testing,istio-integration,network-policy,kubernetes-debugging,load-balancer-testing,health-check-endpoint,proxy-logging,ghcr-container,alpine-linux,cloud-native,devops-tools',
+  author: 'Ganapathi Chidambaram',
+  date: '2025-12-31',
+  description:
+    'Complete guide to deploying Snooze ultra-lightweight HTTP server in Kubernetes. Learn testing strategies, reverse proxy configuration, service mesh integration, performance benchmarks, and real-world scenarios for microservices development, debugging, and CI/CD pipelines.',
+}
+
+
+# Snooze: Ultra-Minimal Webserver for Kubernetes
+
+## Overview
+
+**Snooze** is an ultra-lightweight HTTP server designed for testing with static response, placeholder deployments, and reverse proxy scenarios in Kubernetes environments. With minimal resource requirements and maximum flexibility, Snooze provides a simple yet powerful solution for various use cases.
+
+### Key Features
+
+- **Ultra-Lightweight**: Single-binary server with minimal dependencies
+- **Flexible Configuration**: Override settings via environment variables or command-line flags
+- **Reverse Proxy Mode**: Forward requests to upstream hosts with full logging
+- **Structured JSON Logging**: Easy integration with logging systems
+- **Graceful Shutdown**: Handles SIGINT and SIGTERM signals properly
+- **Container-Ready**: Available as `ghcr.io/technobureau/snooze:latest`
+
+### Default Behavior
+
+| Setting | Default Value |
+|---------|---------------|
+| Port | `80` |
+| Message | `"Hello from snooze!"` |
+| Log Format | JSON |
+
+---
+
+## Prerequisites
+
+Before deploying Snooze to your Kubernetes cluster, ensure you have:
+
+- A running Kubernetes cluster (v1.19+)
+- `kubectl` configured to access your cluster
+- Basic understanding of Kubernetes resources (Deployments, Services, ConfigMaps)
+- (Optional) Ingress controller for ingress examples
+
+---
+
+## Quick Start
+
+### 1. Minimal Deployment
+
+The simplest way to deploy Snooze with default settings:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snooze
+  labels:
+    app: snooze
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snooze
+  template:
+    metadata:
+      labels:
+        app: snooze
+    spec:
+      containers:
+      - name: snooze
+        image: ghcr.io/technobureau/snooze:latest
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snooze-service
+spec:
+  selector:
+    app: snooze
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+  type: ClusterIP
+```
+
+Apply the deployment:
+
+```bash
+kubectl apply -f snooze-deployment.yaml
+```
+
+Verify the deployment:
+
+```bash
+kubectl get pods -l app=snooze
+kubectl port-forward svc/snooze-service 8080:80
+curl http://localhost:8080  # Output: "Hello from snooze!"
+```
+
+---
+
+## Architecture & Design Philosophy
+
+### How Snooze Works
+
+Snooze operates on a simple yet effective architecture:
+
+```
+┌─────────────┐
+│   Client    │
+└──────┬──────┘
+       │ HTTP Request
+       ▼
+┌─────────────────────────────┐
+│   Snooze Container (Pod)    │
+│  ┌─────────────────────┐    │
+│  │  Single Binary       │    │
+│  │  - HTTP Server       │    │
+│  │  - JSON Logger       │    │
+│  │  - Signal Handler    │    │
+│  └─────────────────────┘    │
+└─────────────┬───────────────┘
+              │
+              ▼
+   ┌──────────────────────┐
+   │  Mode Selection      │
+   └──────┬───────────────┘
+          │
+    ┌─────┴─────┐
+    │           │
+    ▼           ▼
+┌────────┐  ┌────────────┐
+│ Static │  │   Proxy    │
+│Response│  │  Upstream  │
+└────────┘  └────────────┘
+```
+
+### Design Principles
+
+1. **Minimalism**: Single binary with no external dependencies
+2. **Configurability**: Environment variables and CLI flags for flexibility
+3. **Observability**: Structured JSON logging for easy monitoring
+4. **Cloud-Native**: Designed specifically for containerized environments
+5. **Graceful Lifecycle**: Proper signal handling for Kubernetes integration
+
+---
+
+## Why Choose Snooze Over Alternatives?
+
+### Comparison with Other Lightweight Servers
+
+| Feature | Snooze | nginx | httpd | Python SimpleHTTPServer |
+|---------|--------|-------|-------|------------------------|
+| Container Size | ~10 MB | ~50 MB | ~200 MB | ~900 MB |
+| Memory Usage | ~5-10 MB | ~20-50 MB | ~50-100 MB | ~30-50 MB |
+| Configuration | Env vars/Flags | Config files | Config files | Command-line |
+| JSON Logging | ✅ Built-in | ⚠️ Needs config | ⚠️ Needs config | ❌ Plain text |
+| Reverse Proxy | ✅ Built-in logging | ✅ Full-featured | ✅ Full-featured | ❌ Not supported |
+| Setup Time | 30 seconds | 5-10 minutes | 10-15 minutes | 2-3 minutes |
+| Best For | Testing/Placeholder | Production | Production | Development |
+
+### When to Use Snooze
+
+✅ **Ideal Use Cases:**
+- Kubernetes networking and service mesh testing
+- Placeholder services during microservice development
+- Request logging and debugging in development environments
+- Load balancer health check endpoints
+- CI/CD pipeline integration testing
+- Learning and experimenting with Kubernetes
+- Lightweight reverse proxy with detailed logging
+
+❌ **Not Recommended For:**
+- Production-facing public applications
+- High-throughput production workloads (use nginx/envoy)
+- Complex routing logic (use API gateways)
+- Static file serving at scale (use CDN/nginx)
+
+---
+
+## Real-World Usage Scenarios
+
+### Scenario 1: Microservices Development Placeholder
+
+**Problem**: Your team is building a microservices architecture with 12 services. Only 3 are ready, but you need to test service discovery.
+
+**Solution**: Deploy Snooze as placeholders for the 9 unfinished services.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service-placeholder
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+      - name: snooze
+        image: ghcr.io/technobureau/snooze:latest
+        env:
+        - name: MESSAGE
+          value: '{"status": "placeholder", "service": "payment"}'
+        - name: PORT
+          value: "8080"
+        ports:
+        - containerPort: 8080
+```
+
+**Benefits**:
+- Test service mesh integration immediately
+- Validate DNS resolution and service discovery
+- Verify network policies before real services deploy
+- Enable frontend team to continue development
+
+### Scenario 2: Debugging Ingress Routing Issues
+
+**Problem**: Complex ingress configuration with multiple paths isn't routing correctly.
+
+**Solution**: Deploy color-coded Snooze instances to visually verify routing.
+
+```bash
+# Deploy three instances with distinct messages
+kubectl apply -f snooze-red.yaml    # Returns "RED"
+kubectl apply -f snooze-green.yaml  # Returns "GREEN"  
+kubectl apply -f snooze-blue.yaml   # Returns "BLUE"
+
+# Test routing
+curl https://example.com/api/v1  # Should return "RED"
+curl https://example.com/api/v2  # Should return "GREEN"
+curl https://example.com/admin   # Should return "BLUE"
+```
+
+### Scenario 3: Load Balancer Health Checks
+
+**Problem**: Need a reliable health check endpoint that always responds 200 OK.
+
+**Solution**: Deploy Snooze as a dedicated health check service.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: health-check
+spec:
+  selector:
+    app: snooze-health
+  ports:
+  - port: 80
+    targetPort: 80
+  type: LoadBalancer
+  healthCheckNodePort: 30000
+```
+
+
+**Analysis**:
+```bash
+# Extract proxy performance metrics
+kubectl logs -l app=api-logger | jq -r \
+  'select(.proxy_host) | "\(.proxy_connect_time) \(.proxy_response_time)"' | \
+  awk '{sum1+=$1; sum2+=$2; n++} END {print "Avg connect:", sum1/n, "Avg response:", sum2/n}'
+```
+
+---
+
+## Configuration Options
+
+Snooze supports two methods for configuration, with **environment variables taking priority** over command-line flags:
+
+### Environment Variables (Highest Priority)
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `PORT` | Listen port | `8080` |
+| `MESSAGE` | Response message | `"Custom message"` |
+| `PROXY_HOST` | Upstream host for proxy mode | `example.com` |
+| `PROXY_PORT` | Upstream port for proxy mode | `80` |
+
+### Command-Line Flags (Used if env var not set)
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--port` | Listen port | `--port=8080` |
+| `--message` | Response message | `--message="Hello K8s!"` |
+| `--proxy-host` | Upstream host | `--proxy-host=example.com` |
+| `--proxy-port` | Upstream port | `--proxy-port=80` |
+
+---
+
+## Deployment Examples
+
+### Example 1: Custom Port and Message (Environment Variables)
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snooze-custom-env
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: snooze-custom-env
+  template:
+    metadata:
+      labels:
+        app: snooze-custom-env
+    spec:
+      containers:
+      - name: snooze
+        image: ghcr.io/technobureau/snooze:latest
+        env:
+        - name: PORT
+          value: "8080"
+        - name: MESSAGE
+          value: "Hello from Kubernetes!"
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            memory: "16Mi"
+            cpu: "10m"
+          limits:
+            memory: "32Mi"
+            cpu: "50m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snooze-custom-env-service
+spec:
+  selector:
+    app: snooze-custom-env
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+```
+
+### Example 2: Command-Line Flags Override
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snooze-flags
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snooze-flags
+  template:
+    metadata:
+      labels:
+        app: snooze-flags
+    spec:
+      containers:
+      - name: snooze
+        image: ghcr.io/technobureau/snooze:latest
+        args:
+        - "--port=9090"
+        - "--message=Configured via flags!"
+        ports:
+        - containerPort: 9090
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snooze-flags-service
+spec:
+  selector:
+    app: snooze-flags
+  ports:
+  - port: 80
+    targetPort: 9090
+  type: ClusterIP
+```
+
+### Example 3: HTML Content via ConfigMap
+
+Store rich HTML content in a ConfigMap for dynamic responses:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: snooze-html-config
+data:
+  message: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Snooze - Kubernetes</title>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          margin: 0;
+        }
+        .container {
+          text-align: center;
+          padding: 2rem;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 10px;
+          backdrop-filter: blur(10px);
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>🎉 Hello from Snooze!</h1>
+        <p>Deployed on Kubernetes with ConfigMap</p>
+      </div>
+    </body>
+    </html>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snooze-html
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snooze-html
+  template:
+    metadata:
+      labels:
+        app: snooze-html
+    spec:
+      containers:
+      - name: snooze
+        image: ghcr.io/technobureau/snooze:latest
+        env:
+        - name: MESSAGE
+          valueFrom:
+            configMapKeyRef:
+              name: snooze-html-config
+              key: message
+        - name: PORT
+          value: "8080"
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snooze-html-service
+spec:
+  selector:
+    app: snooze-html
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: LoadBalancer
+```
+
+---
+
+## Advanced Use Cases
+
+### Reverse Proxy Deployment
+
+Use Snooze as a logging proxy to monitor requests before forwarding them to upstream services:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snooze-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snooze-proxy
+  template:
+    metadata:
+      labels:
+        app: snooze-proxy
+    spec:
+      containers:
+      - name: snooze
+        image: ghcr.io/technobureau/snooze:latest
+        env:
+        - name: PROXY_HOST
+          value: "httpbin.org"
+        - name: PROXY_PORT
+          value: "80"
+        - name: PORT
+          value: "8080"
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snooze-proxy-service
+spec:
+  selector:
+    app: snooze-proxy
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+```
+
+**Proxy Logging Features:**
+- `proxy_host`: Upstream host
+- `proxy_port`: Upstream port
+- `proxy_connect_time`: TCP connection time
+- `proxy_response_time`: Response streaming time
+
+### Multi-Path Ingress with Color-Coded Deployments
+
+Create multiple Snooze instances with path-based routing:
+
+```yaml
+# Red Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snooze-red
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snooze-red
+  template:
+    metadata:
+      labels:
+        app: snooze-red
+    spec:
+      containers:
+      - name: snooze
+        image: ghcr.io/technobureau/snooze:latest
+        args:
+        - "--port=8081"
+        - "--message=🔴 RED Instance"
+        ports:
+        - containerPort: 8081
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snooze-red-service
+spec:
+  selector:
+    app: snooze-red
+  ports:
+  - port: 80
+    targetPort: 8081
+---
+# Green Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snooze-green
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snooze-green
+  template:
+    metadata:
+      labels:
+        app: snooze-green
+    spec:
+      containers:
+      - name: snooze
+        image: ghcr.io/technobureau/snooze:latest
+        args:
+        - "--port=8082"
+        - "--message=🟢 GREEN Instance"
+        ports:
+        - containerPort: 8082
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snooze-green-service
+spec:
+  selector:
+    app: snooze-green
+  ports:
+  - port: 80
+    targetPort: 8082
+---
+# Blue Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snooze-blue
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snooze-blue
+  template:
+    metadata:
+      labels:
+        app: snooze-blue
+    spec:
+      containers:
+      - name: snooze
+        image: ghcr.io/technobureau/snooze:latest
+        args:
+        - "--port=8083"
+        - "--message=🔵 BLUE Instance"
+        ports:
+        - containerPort: 8083
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snooze-blue-service
+spec:
+  selector:
+    app: snooze-blue
+  ports:
+  - port: 80
+    targetPort: 8083
+---
+# Ingress with Path-Based Routing
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: snooze-colors-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: snooze.example.com
+    http:
+      paths:
+      - path: /red
+        pathType: Prefix
+        backend:
+          service:
+            name: snooze-red-service
+            port:
+              number: 80
+      - path: /green
+        pathType: Prefix
+        backend:
+          service:
+            name: snooze-green-service
+            port:
+              number: 80
+      - path: /blue
+        pathType: Prefix
+        backend:
+          service:
+            name: snooze-blue-service
+            port:
+              number: 80
+```
+
+Test the ingress:
+
+```bash
+# Assuming you've configured DNS or /etc/hosts
+curl http://snooze.example.com/red    # Returns: 🔴 RED Instance
+curl http://snooze.example.com/green  # Returns: 🟢 GREEN Instance
+curl http://snooze.example.com/blue   # Returns: 🔵 BLUE Instance
+```
+
+---
+
+## Monitoring and Logging
+
+### Request Logs (JSON Format)
+
+Snooze outputs structured JSON logs for easy parsing and aggregation:
+
+```json
+{
+  "ts": "2025-12-31T20:46:36+0000",
+  "level": "info",
+  "module": "http",
+  "time": "1.0051",
+  "method": "GET",
+  "path": "/health",
+  "agent": "kube-probe/1.19"
+}
+```
+
+### Proxy Mode Logs
+
+Additional fields when running in proxy mode:
+
+```json
+{
+  "ts": "2025-12-31T20:46:37+0000",
+  "level": "info",
+  "module": "http",
+  "time": "0.1234",
+  "method": "GET",
+  "path": "/",
+  "agent": "curl/7.68.0",
+  "proxy_host": "httpbin.org",
+  "proxy_port": 80,
+  "proxy_connect_time": "0.0500",
+  "proxy_response_time": "0.0700"
+}
+```
+
+### Viewing Logs in Kubernetes
+
+```bash
+# View logs from all Snooze pods
+kubectl logs -l app=snooze --tail=50
+
+# Follow logs in real-time
+kubectl logs -f deployment/snooze
+
+# Parse JSON logs with jq
+kubectl logs deployment/snooze | jq 'select(.method=="GET") | {path, time, agent}'
+```
+
+---
+
+## Health Checks and Probes
+
+Add readiness and liveness probes to your deployments:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snooze-with-probes
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: snooze-probes
+  template:
+    metadata:
+      labels:
+        app: snooze-probes
+    spec:
+      containers:
+      - name: snooze
+        image: ghcr.io/technobureau/snooze:latest
+        ports:
+        - containerPort: 80
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 2
+          periodSeconds: 5
+```
+
+---
+
+## Best Practices
+
+### 1. Resource Limits
+
+Always set resource requests and limits:
+
+```yaml
+resources:
+  requests:
+    memory: "16Mi"
+    cpu: "10m"
+  limits:
+    memory: "32Mi"
+    cpu: "50m"
+```
+
+### 2. Security Context
+
+Run Snooze with a non-root user:
+
+```yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+```
+
+### 3. Use ConfigMaps for Dynamic Content
+
+Store messages in ConfigMaps to update content without rebuilding images:
+
+```bash
+kubectl create configmap snooze-message --from-literal=message="Updated message"
+kubectl rollout restart deployment/snooze-html
+```
+
+### 4. Horizontal Pod Autoscaling
+
+Scale based on CPU usage:
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: snooze-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: snooze
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+```
+
+---
+
+## Troubleshooting
+
+### Pod Not Starting
+
+Check pod status and events:
+
+```bash
+kubectl describe pod -l app=snooze
+kubectl logs -l app=snooze --tail=100
+```
+
+### Port Conflicts
+
+Ensure `containerPort` matches the `PORT` environment variable or `--port` flag:
+
+```yaml
+# ✅ Correct
+env:
+- name: PORT
+  value: "8080"
+ports:
+- containerPort: 8080
+
+# ❌ Incorrect (mismatch)
+env:
+- name: PORT
+  value: "8080"
+ports:
+- containerPort: 80
+```
+
+### Service Not Accessible
+
+Verify service and endpoint configuration:
+
+```bash
+kubectl get svc snooze-service
+kubectl get endpoints snooze-service
+kubectl port-forward svc/snooze-service 8080:80
+```
+
+### ConfigMap Not Updating
+
+After updating a ConfigMap, restart the deployment:
+
+```bash
+kubectl edit configmap snooze-html-config
+kubectl rollout restart deployment/snooze-html
+```
+
+### Proxy Mode Not Working
+
+Check proxy environment variables and logs:
+
+```bash
+kubectl logs -l app=snooze-proxy | jq 'select(.proxy_host)'
+```
+
+---
+
+## Advanced Kubernetes Integrations
+
+### Network Policies for Isolation
+
+Control traffic to and from Snooze instances using Kubernetes Network Policies:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: snooze-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: snooze
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow traffic from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 80
+  # Allow traffic from same namespace
+  - from:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 80
+  egress:
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  # Allow proxy mode to external services
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 443
+```
+
+### Service Mesh Integration (Istio)
+
+Integrate Snooze with Istio for advanced traffic management:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: snooze-istio
+  labels:
+    app: snooze-mesh
+spec:
+  selector:
+    app: snooze-mesh
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snooze-istio
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: snooze-mesh
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: snooze-mesh
+        version: v1
+      annotations:
+        sidecar.istio.io/inject: "true"
+    spec:
+      containers:
+      - name: snooze
+        image: ghcr.io/technobureau/snooze:latest
+        env:
+        - name: PORT
+          value: "8080"
+        - name: MESSAGE
+          value: "Snooze with Istio"
+        ports:
+        - containerPort: 8080
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: snooze-vs
+spec:
+  hosts:
+  - snooze-istio
+  http:
+  - match:
+    - headers:
+        x-debug:
+          exact: "true"
+    route:
+    - destination:
+        host: snooze-istio
+        subset: v1
+      weight: 100
+    timeout: 10s
+    retries:
+      attempts: 3
+      perTryTimeout: 2s
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: snooze-dr
+spec:
+  host: snooze-istio
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+      http:
+        http1MaxPendingRequests: 50
+        maxRequestsPerConnection: 2
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+```
+
+### Observability Stack Integration
+
+#### Prometheus Monitoring with ServiceMonitor
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: snooze-metrics
+  labels:
+    app: snooze
+spec:
+  selector:
+    app: snooze
+  ports:
+  - port: 80
+    targetPort: 80
+    name: http
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: snooze-monitor
+  labels:
+    app: snooze
+spec:
+  selector:
+    matchLabels:
+      app: snooze
+  endpoints:
+  - port: http
+    interval: 30s
+    path: /metrics
+```
+
+#### Fluentd Log Aggregation
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snooze-logged
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snooze-logged
+  template:
+    metadata:
+      labels:
+        app: snooze-logged
+      annotations:
+        # Fluentd will parse JSON logs automatically
+        fluentd.io/parser-type: json
+    spec:
+      containers:
+      - name: snooze
+        image: ghcr.io/technobureau/snooze:latest
+        env:
+        - name: PORT
+          value: "8080"
+        ports:
+        - containerPort: 8080
+```
+
+#### OpenTelemetry Sidecar Pattern
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snooze-otel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: snooze-otel
+  template:
+    metadata:
+      labels:
+        app: snooze-otel
+    spec:
+      containers:
+      - name: snooze
+        image: ghcr.io/technobureau/snooze:latest
+        env:
+        - name: PORT
+          value: "8080"
+        ports:
+        - containerPort: 8080
+      - name: otel-collector
+        image: otel/opentelemetry-collector:latest
+        args:
+        - "--config=/conf/otel-collector-config.yaml"
+        volumeMounts:
+        - name: otel-config
+          mountPath: /conf
+      volumes:
+      - name: otel-config
+        configMap:
+          name: otel-collector-config
+```
+
+
+---
+
+## Version Compatibility & Requirements
+
+### Container Runtime Compatibility
+
+- ✅ **containerd**: Fully supported (recommended)
+- ✅ **CRI-O**: Fully supported
+- ✅ **Docker**: Fully supported (deprecated in K8s 1.24+)
+
+### Architecture Support
+
+- ✅ **AMD64 (x86_64)**: Primary support
+- ✅ **ARM64 (aarch64)**: Full support
+
+---
+
+## Frequently Asked Questions (FAQ)
+
+### General Questions
+
+**Q: What is the primary use case for Snooze?**
+
+A: Snooze is designed for testing, development, and debugging in Kubernetes environments. Use it for placeholder services, network testing, request logging, and CI/CD pipeline validation. It's NOT intended for production-facing applications.
+
+**Q: How is Snooze different from nginx or Apache?**
+
+A: Snooze is much lighter (~1 MB vs ~50-200 MB), configured via environment variables instead of config files, includes built-in structured JSON logging, and is specifically designed for Kubernetes testing scenarios. However, nginx/Apache are better suited for production workloads.
+
+**Q: Can I use Snooze in production?**
+
+A: While Snooze is stable, it's designed for testing and development. For production workloads requiring high throughput, advanced features, or public-facing services, use battle-tested servers like nginx, Envoy, or Caddy.
+
+**Q: Is Snooze open source?**
+
+A: Yes! Snooze is open source and available on GitHub at [https://github.com/TechnoBureau/snooze](https://github.com/TechnoBureau/snooze).
+
+### Configuration Questions
+
+**Q: What happens if I set both environment variables AND command-line flags?**
+
+A: Environment variables take priority. If `PORT` env var is set to `8080` but you specify `--port=9090`, Snooze will use `8080`.
+
+**Q: Can I serve files from a volume mount?**
+
+A: Snooze returns a static message, not files from disk. For file serving, consider using nginx or Python's http.server. However, you can set the MESSAGE env var to contain HTML/JSON content from a ConfigMap.
+
+**Q: How do I serve HTTPS/TLS traffic?**
+
+A: Snooze doesn't handle TLS directly. Use a Kubernetes Ingress with TLS termination, or run Snooze behind a service mesh like Istio for automatic mTLS.
+
+**Q: Can I customize the HTTP response code?**
+
+A: Currently, Snooze always returns 200 OK. For custom status codes, you'd need to modify the source code.
+
+### Deployment Questions
+
+**Q: Should I use replicas or HPA?**
+
+A: For testing, start with 1-3 replicas. For load testing or CI/CD, use HPA to automatically scale based on CPU/memory usage.
+
+**Q: Does Snooze work with Kubernetes namespaces?**
+
+A: Yes! Deploy Snooze to any namespace. Use namespaces for isolation in multi-tenant testing scenarios.
+
+### Proxy Mode Questions
+
+**Q: Can Snooze proxy HTTPS upstream services?**
+
+A: Snooze can proxy to HTTPS endpoints. Set `PROXY_PORT=443` and `PROXY_HOST=your-https-service.com`. However, Snooze logs the connection but doesn't decrypt HTTPS traffic.
+
+**Q: Does proxy mode support WebSockets?**
+
+A: Snooze is designed for simple HTTP proxying. WebSocket support is limited. For WebSocket proxying, use nginx or Envoy.
+
+**Q: Can I use Snooze as a reverse proxy for multiple backends?**
+
+A: Snooze proxies to a single upstream host. For multiple backends, deploy multiple Snooze instances or use an API gateway.
+
+### Troubleshooting Questions
+
+**Q: Why is my pod in CrashLoopBackOff?**
+
+A: Common causes:
+- Port conflict (containerPort doesn't match PORT env var)
+- Image pull errors (check image name and registry access)
+- Resource limits too low (increase memory/CPU limits)
+- Security context issues (especially on OpenShift)
+
+Check logs: `kubectl logs <pod-name>`
+
+**Q: Why can't I access the service from outside the cluster?**
+
+A: Check:
+1. Service type (ClusterIP is internal only, use LoadBalancer or Ingress for external access)
+2. Ingress configuration (if using Ingress)
+3. Network policies (ensure they allow ingress traffic)
+4. Firewall rules (cloud provider level)
+
+**Q: Why are my logs not showing up?**
+
+A: Snooze outputs JSON logs to stdout. Check:
+- `kubectl logs <pod-name>` to verify output
+- Log aggregation configuration (Fluentd, Filebeat, etc.)
+- Log level settings in your logging infrastructure
+
+**Q: ConfigMap changes aren't reflected in responses?**
+
+A: Environment variables from ConfigMaps are injected at pod creation. After updating a ConfigMap, restart the deployment:
+```bash
+kubectl rollout restart deployment/snooze
+```
+
+### Performance Questions
+
+**Q: What's the startup time?**
+
+A: Snooze starts in <1 second (cached image). From `kubectl apply` to first successful request typically takes 1-3 seconds.
+
+**Q: Does Snooze support HTTP/2 or HTTP/3?**
+
+A: Snooze currently supports HTTP/1.1 only. For HTTP/2 or HTTP/3, use nginx, Caddy, or Envoy.
+
+---
+
+## Troubleshooting
+
+Remove all Snooze resources:
+
+```bash
+# Delete specific deployment
+kubectl delete deployment snooze
+kubectl delete service snooze-service
+
+# Delete all Snooze resources
+kubectl delete deployment,service,configmap,ingress -l app=snooze
+
+# Or delete by YAML file
+kubectl delete -f snooze-deployment.yaml
+```
+
+---
+
+## Use Cases
+
+### 1. Testing Kubernetes Networking
+Deploy Snooze to test service discovery, ingress rules, and network policies.
+
+### 2. Placeholder Services
+Use Snooze as a placeholder while developing microservices.
+
+### 3. Request Logging Proxy
+Monitor and log requests to upstream services for debugging.
+
+### 4. Load Testing Target
+Create multiple Snooze instances to test load balancer behavior.
+
+### 5. CI/CD Pipeline Testing
+Deploy Snooze in test environments to validate deployment pipelines.
+
+---
+
+## Additional Resources
+
+- **GitHub Repository**: [https://github.com/TechnoBureau/snooze](https://github.com/TechnoBureau/snooze)
+- **Container Image**: `ghcr.io/technobureau/snooze:latest`
+
+---
+
+## Summary
+
+Snooze provides a simple yet powerful solution for Kubernetes testing and development. With its ultra-lightweight design, flexible configuration options, and comprehensive logging capabilities, it's an ideal choice for:
+
+- **Development and Testing**: Quick placeholder services
+- **Network Debugging**: Request logging and proxy functionality  
+- **Learning Kubernetes**: Simple deployments for educational purposes
+- **CI/CD Pipelines**: Reliable test targets
+
+Start with the minimal deployment and explore advanced configurations as your needs grow. Happy deploying! 💤
