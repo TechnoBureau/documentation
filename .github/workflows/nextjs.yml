@@ -30,6 +30,11 @@ jobs:
       #     static_site_generator: next
 
       - name: Build with Next.js 🏗️
+        # Ensure Giscus config is provided at build time via repository Variables (Settings → Secrets and variables → Actions → Variables)
+        # Set the following Variables in the repository: NEXT_PUBLIC_GISCUS_REPO, NEXT_PUBLIC_GISCUS_REPO_ID, NEXT_PUBLIC_GISCUS_CATEGORY_ID
+        env:
+          NEXT_PUBLIC_GISCUS_REPO_ID: ${{ vars.NEXT_PUBLIC_GISCUS_REPO_ID }}
+          NEXT_PUBLIC_GISCUS_CATEGORY_ID: ${{ vars.NEXT_PUBLIC_GISCUS_CATEGORY_ID }}
         run: npm run build
 
       - name: Upload artifact 📡

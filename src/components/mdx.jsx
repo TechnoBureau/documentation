@@ -3,6 +3,7 @@ import Link from 'next/link'
 
 import { Heading } from '@/components/Heading'
 import { Prose } from '@/components/Prose'
+import CommentsClient from '@/components/CommentsClient'
 
 export const a = Link
 export { Button } from '@/components/Button'
@@ -13,6 +14,9 @@ export function wrapper({ children }) {
     <article className="flex h-full flex-col pt-16 pb-10">
       <Prose className="flex-auto">{children}</Prose>
       <footer className="mx-auto mt-16 w-full max-w-2xl lg:max-w-5xl group-data-sidebar-collapsed:lg:max-w-7xl">
+        <div className="mt-8">
+          <CommentsClient />
+        </div>
       </footer>
     </article>
   )

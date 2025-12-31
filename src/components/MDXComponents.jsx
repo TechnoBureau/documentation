@@ -4,6 +4,7 @@ import { Blockquote } from '@/components/Blockquote'
 import { Border } from '@/components/Border'
 import { StatList, StatListItem } from '@/components/StatList'
 import { TagList, TagListItem } from '@/components/TagList'
+import Giscus from '@/components/Giscus'
 
 export const MDXComponents = {
   Blockquote({ className, ...props }) {
@@ -69,4 +70,7 @@ export const MDXComponents = {
       />
     )
   },
+    Giscus(props) {
+      return <Giscus {...props} />
+    },
 }
