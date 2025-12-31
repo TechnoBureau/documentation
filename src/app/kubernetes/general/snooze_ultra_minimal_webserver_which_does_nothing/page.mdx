@@ -525,6 +525,38 @@ spec:
 - `proxy_connect_time`: TCP connection time
 - `proxy_response_time`: Response streaming time
 
+### Delay Behavior (/snooze path)
+
+Snooze exposes a delay endpoint useful for testing timeouts, retries, and slow-backend behavior.Typical usage patterns:
+
+- Path-based delay: append the delay (in seconds) to the path, for example `/snooze/3` will delay the response by ~3 seconds.
+- Useful for simulating slow upstreams, validating client timeouts, and tuning ingress/load-balancer timeouts.
+
+Example (curl):
+
+```bash
+curl -i http://<host>/snooze/5    # responds after ~5 seconds
+```
+
+Kubernetes probe example (simulate a slow readiness check):
+
+```yaml
+readinessProbe:
+  httpGet:
+    path: /snooze/2
+    port: 80
+  initialDelaySeconds: 2
+  periodSeconds: 5
+```
+
+Response:
+
+```
+#Will say exactly how much time it snoozed the response time.
+Snoozed for 2.0032 Seconds!
+```
+
+
 ### Multi-Path Ingress with Color-Coded Deployments
 
 Create multiple Snooze instances with path-based routing:
