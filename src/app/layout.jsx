@@ -55,13 +55,16 @@ export const metadata = {
 
 export default async function RootLayout({ children }) {
   let pages = await glob('**/*.mdx', { cwd: 'src/app' })
-  let allSectionsEntries = await Promise.all(
-    pages.map(async (filename) => [
-      '/' + filename.replace(/(^|\/)page\.mdx$/, ''),
-      (await import(`./${filename}`)).sections,
-    ]),
+  let allEntries = await Promise.all(
+    pages.map(async (filename) => {
+      let route = '/' + filename.replace(/(^|\/)page\.mdx$/, '')
+      let mod = await import(`./${filename}`)
+      return [route, { sections: mod.sections, metadata: mod.metadata }]
+    }),
   )
-  let allSections = Object.fromEntries(allSectionsEntries)
+
+  let allSections = Object.fromEntries(allEntries.map(([k, v]) => [k, v.sections]))
+  let allMetadata = Object.fromEntries(allEntries.map(([k, v]) => [k, v.metadata]))
 
   return (
     <html lang="en" className="h-full" suppressHydrationWarning>
@@ -69,7 +72,9 @@ export default async function RootLayout({ children }) {
         <Providers>
           <div className="flex min-h-full w-full flex-col">
             <HeroPattern />
-            <Layout allSections={allSections}>{children}</Layout>
+            <Layout allSections={allSections} allMetadata={allMetadata}>
+              {children}
+            </Layout>
           </div>
         </Providers>
       </body>
