@@ -92,46 +92,6 @@ function rehypeAddMDXExports(getExports) {
 }
 
 function getSections(node) {
-
-  function getAutoMetadata(node) {
-    let title
-    let description
-    let date
-
-    function find(node) {
-      if (!node) return
-      if (!title && node.type === 'element' && /h1|h2/.test(node.tagName)) {
-        title = toString(node)
-      }
-      if (!description && node.type === 'element' && node.tagName === 'p') {
-        let txt = toString(node).trim()
-        if (txt) description = txt
-      }
-      if (!date && node.type === 'element' && node.tagName === 'time') {
-        date = node.properties && node.properties.datetime
-      }
-      for (let child of node.children ?? []) find(child)
-    }
-
-    find(node)
-
-    // fallback: look for ISO date pattern in first paragraph
-    if (!date && description) {
-      let m = description.match(/(\d{4}-\d{2}-\d{2})/)
-      if (m) {
-        date = m[1]
-        // remove date from description
-        description = description.replace(m[1], '').trim()
-      }
-    }
-
-    let meta = {}
-    if (title) meta.title = title
-    if (description) meta.description = description
-    if (date) meta.date = date
-
-    return JSON.stringify(meta)
-  }
   let sections = []
 
   for (let child of node.children ?? []) {
@@ -158,7 +118,6 @@ export const rehypePlugins = [
     rehypeAddMDXExports,
     (tree) => ({
       sections: `[${getSections(tree).join()}]`,
-      metadata: getAutoMetadata(tree),
     }),
   ],
 ]

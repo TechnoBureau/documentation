@@ -4,7 +4,6 @@ import { Blockquote } from '@/components/Blockquote'
 import { Border } from '@/components/Border'
 import { StatList, StatListItem } from '@/components/StatList'
 import { TagList, TagListItem } from '@/components/TagList'
-import Seo from '@/components/Seo'
 
 export const MDXComponents = {
   Blockquote({ className, ...props }) {
@@ -70,7 +69,6 @@ export const MDXComponents = {
       />
     )
   },
-  Seo,
     // Giscus intentionally not exposed here — comments are rendered
     // via the MDX wrapper's `CommentsClient` to control where
     // the widget appears (article pages only).

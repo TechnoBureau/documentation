@@ -11,12 +11,10 @@ import { Header } from '@/components/Header'
 import { Logo } from '@/components/Logo'
 import { Navigation } from '@/components/Navigation'
 import { SectionProvider } from '@/components/SectionProvider'
-import Seo from '@/components/Seo'
 
-export function Layout({ children, allSections, allMetadata = {} }) {
+export function Layout({ children, allSections }) {
   let pathname = usePathname()
   let { isOpen } = useSidebarStore()
-  let meta = allMetadata[pathname]
 
   return (
     <SectionProvider sections={allSections[pathname] ?? []}>
@@ -37,7 +35,6 @@ export function Layout({ children, allSections, allMetadata = {} }) {
           )}
         >
           <div className="relative flex flex-auto flex-col px-4 pt-14 sm:px-6 lg:px-8">
-            {meta ? <Seo meta={meta} /> : null}
             <main className="flex-auto">{children}</main>
             <Footer />
           </div>
