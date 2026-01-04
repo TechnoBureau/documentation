@@ -1,0 +1,208 @@
+export const metadata = {
+  title: 'Bruno v3 Preview: The Next Evolution in Git-Friendly API Testing',
+  keywords: 'Bruno,API Testing,Git-Friendly,OpenCollection,YAML,CI/CD,DevOps,Postman Alternative,API Client,Microservices,API Development,API Automation,API Workflow,Bruno v3,API Collaboration',
+  author: 'Ganapathi Chidambaram',
+  date: '2026-01-05',
+  description:
+    'Explore Bruno v3 Preview, the next evolution in Git-friendly API testing. Discover its new YAML-based OpenCollection format, enhanced Git integration, CI/CD benefits, and practical examples for requests, scripts, environments, and variables. A powerful open-source alternative for modern API workflows.',
+}
+
+# Bruno v3 Preview: The Ultimate Git-Friendly API Client Taking 2026 by Storm
+
+Hey there, fellow developers and API lovers! If you're tired of clunky, cloud-dependent tools like Postman that make team collaboration a headache, you're in for a treat. **Bruno** has always been the refreshing open-source alternative—offline-first, lightweight, and truly git-friendly. Now, with the **Bruno v3 early preview** live as of early 2026, it's evolving into something even more powerful and exciting.
+
+In this guide, we'll chat about why Bruno v3 is worth jumping into right now, explore its game-changing YAML support, and walk you through creating collections, requests, scripts, environments, and more—all in a super approachable way. Whether you're a solo coder or on a big team, Bruno v3 makes API testing feel effortless and fun.
+
+Let's dive in!
+
+## Why Choose Bruno v3? The Features That Make It Special (And Why You Should Start Using It Today)
+
+Bruno isn't just another API client—it's built for real-world workflows. The v3 preview brings a fresh modern interface with better colors, spacing, and responsiveness that feels polished and intuitive.
+
+Standout upgrades include:
+- **Workspaces**: Easily organize multiple API collections by project or team—no more scrolling through endless lists!
+- **Inbuilt Terminal**: Run commands right inside Bruno for quicker debugging and scripting.
+- **Enhanced Git Tools**: View commit history, graphs, stash changes, and handle merges smoothly.
+- **YAML Support (Beta)**: The big one we'll cover in depth below—ditching proprietary formats for clean, standard YAML.
+
+What makes v3 special? It's all about **freedom and collaboration**. No vendor lock-in, no forced cloud sync. Everything lives as plain files on your machine, perfect for version control with Git. Diffs are clean, merges are painless, and you can edit requests in your favorite IDE.
+
+**Why switch now?** The preview is stable for everyday use, and YAML is set to become the default in February 2026 (with full support for older formats continuing). Starting early means your collections are future-proof, CI/CD-ready, and optimized for team workflows. If you value open-source tools that respect your data and workflow, Bruno v3 is a no-brainer.
+
+## Unlock the Magic of OpenCollection: YAML Format and Seamless CI/CD Integration
+
+One of Bruno v3's biggest wins is adopting the **OpenCollection** format—an open standard for API collections stored as simple YAML files.
+
+Why is this a game-changer?
+- **Truly Open-Source**: No proprietary magic. Anyone can build tools around it.
+- **Git-Optimized**: Human-readable files mean beautiful, meaningful diffs (goodbye, noisy changes!).
+- **Editor-Friendly**: Tweak requests in VS Code, Vim, or any text editor.
+- **Perfect for Automation**: Use Bruno's CLI to run collections headless in pipelines like GitHub Actions or GitLab CI.
+
+Imagine generating API tests programmatically or running automated checks on every pull request—YAML makes it effortless. It's the foundation for a more extensible, team-friendly future.
+
+## How to Create YAML Collections and Requests in Bruno v3 (With Practical Examples)
+
+Getting started is easy:
+1. Download the v3 preview and create a new collection.
+2. Select **YAML** as the format.
+3. Bruno sets up a folder with `.yml` files—you can build via the UI or edit directly.
+
+### Simple GET Request Example
+
+Here's a basic `get-users.yml`:
+
+```yaml
+uid: get-users
+name: Get All Users
+type: http-request
+
+request:
+  method: GET
+  url: https://api.example.com/users
+
+docs: |
+  # Fetch User List
+
+  Retrieves all users from the system.
+
+  **Success Response**:
+  - 200 OK
+  - JSON array of users
+```
+
+### Advanced POST Request with Headers, Body, and Params
+
+Try this `create-user.yml`:
+
+```yaml
+uid: create-user
+name: Create New User
+type: http-request
+
+request:
+  method: POST
+  url: https://api.example.com/users
+  headers:
+    - key: Content-Type
+      value: application/json
+    - key: Authorization
+      value: Bearer {{auth_token}}
+  params:
+    - key: source
+      value: bruno
+      enabled: true
+  body:
+    mode: json
+    json: |
+      {
+        "name": "{{user_name}}",
+        "email": "{{user_email}}"
+      }
+
+docs: |
+  # Add a User
+
+  Creates a new account with the given details.
+```
+
+### Adding Pre-Request and Post-Request Scripts
+
+Scripts run JavaScript with Bruno's handy `bru` API for dynamic logic and tests.
+
+```yaml
+script:
+  prerequest: |
+    // Set a timestamp variable
+    bru.setVar('timestamp', new Date().toISOString());
+
+    // Generate and pass a value to the next request
+    const randomId = Math.floor(Math.random() * 10000);
+    bru.setNextRequestVar('generated_id', randomId);
+
+    console.log('Running pre-request setup!');
+
+  postrequest: |
+    // Basic assertions (these act as tests)
+    bru.assert(response.status === 201);
+    bru.assertJsonPath('$.id', response.body.json);
+
+    // Extract data for later use
+    const newUserId = response.body.json.id;
+    bru.setVar('created_user_id', newUserId);
+
+    console.log('Post-request checks complete!');
+```
+
+Failed assertions mark the request as failed—perfect for collection runners.
+
+## Mastering Environments in Bruno v3
+
+Environments let you swap variables effortlessly between dev, staging, and production.
+
+Create files like `dev.env.json` in your collection folder:
+
+```json
+{
+  "base_url": "https://dev.api.example.com",
+  "auth_token": "dev-secret-token"
+}
+```
+
+Use them in requests: `url: {{base_url}}/users`
+
+Switch environments in the UI or via CLI (`bru run --env prod`). They override other variables, keeping your tests flexible and secure.
+
+## Understanding Folder Structure, Settings, and Configurations
+
+YAML collections are beautifully simple directories:
+
+```
+my-awesome-api/
+├── bruno.json              # Collection metadata, variables, auth
+├── collection.yml          # Upcoming: Collection-level config
+├── environments/
+│   ├── dev.env.json
+│   └── prod.env.json
+├── users/
+│   ├── get-users.yml
+│   ├── create-user.yml
+│   └── folder-config.json  # Folder-specific vars (optional)
+└── posts/
+    └── list-posts.yml
+```
+
+Settings flow down: collection → folder → request. This mirrors your API structure and makes organization intuitive.
+
+## Variables Demystified: How to Use Them in Requests and Scripts
+
+Variables make your requests dynamic and reusable. Scopes prioritize: request > folder > collection > environment > system env.
+
+- **In Requests**: Just wrap with `{{}}`, e.g., `{{base_url}}` or `{{auth_token}}`.
+- **In Scripts**:
+  ```js
+  bru.getVar('my_var');           // Read
+  bru.setVar('new_var', 'hello'); // Set for current run
+  bru.setEnvVar('api_key', 'abc'); // Environment-specific
+  ```
+
+Built-ins like `{{timestamp}}` or `{{randomId}}` add quick magic. Process env vars? Use `{{$processEnv.SECRET_KEY}}`.
+
+## Ready to Level Up Your API Game? Download Bruno v3 Preview Now!
+
+Bruno v3 preview is your ticket to a smoother, more collaborative API testing experience. With YAML beta shining bright and full release on the horizon, there's never been a better time to try it.
+
+**Download the v3 Early Preview here**: [Bruno v3 Preview Downloads](https://www.usebruno.com/v3-preview) (Windows, macOS, Linux available).
+
+Have questions or feedback? Join the community on GitHub or check the [official docs](https://docs.usebruno.com/).
+
+Thanks for reading—happy testing, and let's make 2026 the year of better API tools! 🚀
+
+
+## Sources
+[1] Bruno - Fast, Git-Friendly Open Source API Client https://www.usebruno.com
+[2] Bruno V3 Early Preview - New Features & Improvements https://www.usebruno.com/v3-preview
+[3] Running a Collection https://docs.usebruno.com/bru-cli/runCollection
+[4] Environment Variables | Bruno Docs https://docs.usebruno.com/variables/environment-variables
+[5] Download Bruno - Free Open Source API Client https://www.usebruno.com/downloads
+[6] Process Environment Variables - Bruno Docs https://docs.usebruno.com/variables/process-env
