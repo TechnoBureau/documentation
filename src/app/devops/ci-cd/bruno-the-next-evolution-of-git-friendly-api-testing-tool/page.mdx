@@ -138,20 +138,67 @@ Failed assertions mark the request as failed—perfect for collection runners.
 
 ## Mastering Environments in Bruno v3
 
-Environments let you swap variables effortlessly between dev, staging, and production.
+Environments let you swap variables effortlessly between dev, staging, and production. In the v3 preview you can store environment files as YAML (or JSON) — YAML is recommended for readability and consistency with OpenCollection.
 
-Create files like `dev.env.json` in your collection folder:
+Create files like `environments/dev.env.yml` in your collection folder:
 
-```json
-{
-  "base_url": "https://dev.api.example.com",
-  "auth_token": "dev-secret-token"
-}
+```yaml
+# environments/dev.env.yml
+base_url: https://dev.api.example.com
+auth_token: dev-secret-token
 ```
 
-Use them in requests: `url: {{base_url}}/users`
+Use them in requests the same way: `url: {{base_url}}/users`.
 
-Switch environments in the UI or via CLI (`bru run --env prod`). They override other variables, keeping your tests flexible and secure.
+Switch environments in the UI or via CLI (`bru run --env dev`). Environment variables override collection- and folder-level variables, keeping your tests flexible and secure.
+
+Using a local `.env` file
+
+If you prefer to keep secrets out of collection files, you can add a local `.env` file at the collection root (not the same as the YAML env files). This file is loaded into the process environment at runtime and is useful for developer-local secrets or CI runners that read environment files.
+
+Example `.env` (collection root):
+
+```
+# .env
+KEY1=supersecretvalue
+API_KEY=abcdef123456
+```
+
+How to reference process env vars
+
+- In YAML requests and templates, reference process env variables with Bruno's process interpolation syntax, for example: `{{$processEnv.KEY1}}`.
+- In request scripts (pre/post request) you can also access them via `process.env.KEY1` (the script runtime exposes the process env).
+
+Examples:
+
+Request header using a process env value:
+
+```yaml
+headers:
+  - key: Authorization
+    value: Bearer {{$processEnv.API_KEY}}
+```
+
+Pre-request script example using `process.env`:
+
+```yaml
+script:
+  prerequest: |
+    // read process env directly in the script
+    const apiKey = process.env.API_KEY || bru.getProcessEnv('API_KEY');
+    bru.setVar('api_key', apiKey);
+```
+
+Security and .gitignore
+
+Never commit your `.env` files to the repo. Add a simple `.gitignore` entry at the collection root:
+
+```
+# ignore local environment secrets
+.env
+```
+
+If you need private environment files checked into a secure store, prefer encrypted secrets or your CI provider's secret storage instead of committing plaintext files.
 
 ## Understanding Folder Structure, Settings, and Configurations
 
@@ -162,15 +209,38 @@ my-awesome-api/
 ├── bruno.json              # Collection metadata, variables, auth
 ├── collection.yml          # Upcoming: Collection-level config
 ├── environments/
-│   ├── dev.env.json
-│   └── prod.env.json
+│   ├── dev.env.yml
+│   └── prod.env.yml
 ├── users/
 │   ├── get-users.yml
 │   ├── create-user.yml
-│   └── folder-config.json  # Folder-specific vars (optional)
+│   └── folders.yml  # Folder-specific vars (optional)
 └── posts/
     └── list-posts.yml
 ```
+
+Sample `folders.yml` (folder-level variables)
+
+```yaml
+# users/folders.yml
+# Variables and small settings applied to all requests in the `users` folder
+base_path: /users
+default_role: tester
+folder_auth_token: folder-specific-token
+```
+
+Usage example in a request inside `users/`:
+
+```yaml
+request:
+  method: GET
+  url: {{base_url}}{{base_path}}
+  headers:
+    - key: Authorization
+      value: Bearer {{folder_auth_token}}
+```
+
+Place a local `.env` file at the collection root (the same directory that contains `bruno.json` or `collection.yml`) so Bruno loads those values into the process environment at runtime. Do not place `.env` inside the `environments/` folder — keep it at the collection root and add it to `.gitignore` to avoid committing secrets.
 
 Settings flow down: collection → folder → request. This mirrors your API structure and makes organization intuitive.
 
