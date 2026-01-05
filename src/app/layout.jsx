@@ -15,7 +15,7 @@ export const metadata = {
   generator: 'TechnoBureau',
   locale: 'en_US',
   type: 'article',
-  url: 'https://ganapathichidambaram.github.io',
+  url: 'https://technobureau.com',
   description: 'We offers a wealth of information, news, and insights into the ever-evolving world of technology. Whether you are a tech enthusiast, professional, or simply curious about the latest trends, TechnoBureau provides you with a one-stop hub to stay up-to-date and explore the fascinating realm of innovation',
   keywords: "documentation,technical guides,development,programming",
   authors: [{ name: 'Ganapathi Chidambaram', url: 'https://github.com/GanapathiChidambaram' }],
@@ -28,7 +28,7 @@ export const metadata = {
     telephone: false,
   },
   openGraph: {
-    url: 'https://ganapathichidambaram.github.io',
+    url: 'https://technobureau.com',
     siteName: 'TechnoBureau',
     locale: 'en_US',
     type: 'article',

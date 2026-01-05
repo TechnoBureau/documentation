@@ -5,7 +5,7 @@ import React from 'react'
 
 export default function Seo({ meta = {} }) {
   const pathname = usePathname() || '/'
-  const siteUrl = meta.url || (meta.openGraph && meta.openGraph.url) || 'https://ganapathichidambaram.github.io'
+  const siteUrl = meta.url || (meta.openGraph && meta.openGraph.url) || 'https://technobureau.com'
   const canonical = (meta.canonical || `${siteUrl.replace(/\/$/, '')}${pathname}`)
 
   const jsonLd = {
