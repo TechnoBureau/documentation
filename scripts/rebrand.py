@@ -1228,6 +1228,31 @@ import { useSidebarStore } from '@/hooks/useSidebarStore'"""
     )
 
 
+    # 14. Dependencies
+    # Add remark-frontmatter and remark-mdx-frontmatter to package.json
+    tool.replace_in_file(
+        'package.json',
+        r'"dependencies": \{',
+        """"dependencies": {
+    "remark-frontmatter": "^5.0.0",
+    "remark-mdx-frontmatter": "^4.0.0","""
+    )
+
+    # 15. MDX Config
+    # Update remark.mjs to use frontmatter plugins
+    tool.write_file('src/mdx/remark.mjs', """import { mdxAnnotations } from 'mdx-annotations'
+import remarkFrontmatter from 'remark-frontmatter'
+import remarkMdxFrontmatter from 'remark-mdx-frontmatter'
+import remarkGfm from 'remark-gfm'
+
+export const remarkPlugins = [
+  mdxAnnotations.remark,
+  remarkFrontmatter,
+  [remarkMdxFrontmatter, { name: 'metadata' }],
+  remarkGfm,
+]
+""")
+
     print("\nRebranding complete!")
 
 if __name__ == "__main__":
