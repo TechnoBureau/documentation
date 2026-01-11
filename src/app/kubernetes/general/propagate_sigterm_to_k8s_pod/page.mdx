@@ -1,11 +1,16 @@
-export const metadata = {
-  title: 'Propagating a SIGTERM Signal to the Main Process in a Kubernetes Pod',
-  keywords: 'SIGTERM handling,Pod Termination,Termination Grace Period,Kubernetes',
-  author: 'Ganapathi Chidambaram',
-  date: '2023-03-22',
-  description:
-    'As a Kubernetes user, you may find that when you restart a pod in Kubernetes, the process running inside the container does not receive the SIGTERM signal. Instead, the signal is only sent to the PID of the entrypoint shell script.',
-}
+---
+author: Ganapathi Chidambaram
+date: 2023-03-22
+keywords:
+  - SIGTERM handling
+  - Pod Termination
+  - Termination Grace Period
+  - Kubernetes
+---
+
+# Propagating a SIGTERM Signal to the Main Process in a Kubernetes Pod
+
+As a Kubernetes user, you may find that when you restart a pod in Kubernetes, the process running inside the container does not receive the SIGTERM signal. Instead, the signal is only sent to the PID of the entrypoint shell script.
 
 ## Introduction
 

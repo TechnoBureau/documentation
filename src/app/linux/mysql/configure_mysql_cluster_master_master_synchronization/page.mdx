@@ -1,15 +1,19 @@
-export const metadata = {
-  title: 'Configuring MySQL Cluster with Master-Master Synchronization',
-  keywords: 'mysql,cluster,high availability',
-  author: 'Ganapathi Chidambaram',
-  date: '2023-03-22',
-  description:
-    'MySQL Cluster is a powerful feature in MySQL that allows for high availability and scalability by distributing the database across multiple servers. In this article, we will walk through the configuration steps for setting up a MySQL Cluster with master-master synchronization.',
-}
+---
+author: Ganapathi Chidambaram
+date: 2023-03-22
+keywords: 
+  - mysql
+  - cluster
+  - high availability
+  - master-master
+  - synchronization
+---
 
-## Introduction
+# Configuring MySQL Cluster with Master-Master Synchronization
 
-MySQL Cluster is a powerful feature in MySQL that allows for high availability and scalability by distributing the database across multiple servers. In this article, we will walk through the configuration steps for setting up a MySQL Cluster with master-master synchronization. We will assume the following server details for our setup:
+MySQL Cluster is a powerful feature in MySQL that allows for high availability and scalability by distributing the database across multiple servers. In this article, we will walk through the configuration steps for setting up a MySQL Cluster with master-master synchronization.
+
+We will assume the following server details for our setup:
 
 MySQL Server1:
 ```

@@ -3,6 +3,7 @@ import { visit } from 'unist-util-visit'
 export function remarkMapFrontmatterMetadata() {
     return (tree) => {
         let hasMetadataExport = false
+        let frontmatterMetadataNode = null
         let frontmatterMetadataIdentifier = null
 
         // First pass: Check for existing metadata export and find the frontmatterMetadata identifier
@@ -21,6 +22,7 @@ export function remarkMapFrontmatterMetadata() {
                                 hasMetadataExport = true
                             }
                             if (decl.id.name === 'frontmatterMetadata') {
+                                frontmatterMetadataNode = node
                                 frontmatterMetadataIdentifier = decl.id
                             }
                         }
@@ -32,6 +34,13 @@ export function remarkMapFrontmatterMetadata() {
         // Second pass: Rename if safe
         if (!hasMetadataExport && frontmatterMetadataIdentifier) {
             frontmatterMetadataIdentifier.name = 'metadata'
+            // Sync value string to ensure tools not using ESTree also see the change
+            if (frontmatterMetadataNode.value) {
+                frontmatterMetadataNode.value = frontmatterMetadataNode.value.replace(
+                    /\bfrontmatterMetadata\b/,
+                    'metadata'
+                )
+            }
         }
     }
 }
