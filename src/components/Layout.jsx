@@ -24,7 +24,10 @@ export function Layout({ children, allSections }) {
       >
         <Header />
 
-        <aside className="fixed bottom-0 left-0 top-14 z-40 w-72 -translate-x-full overflow-y-auto border-r border-zinc-900/10 bg-white px-6 pt-6 pb-8 transition-transform duration-300 ease-in-out lg:not-group-data-sidebar-collapsed:translate-x-0 max-lg:hidden xl:w-80 lg:dark:border-white/10 dark:bg-zinc-900">
+        <aside
+          data-nosnippet
+          className="fixed bottom-0 left-0 top-14 z-40 w-72 -translate-x-full overflow-y-auto border-r border-zinc-900/10 bg-white px-6 pt-6 pb-8 transition-transform duration-300 ease-in-out lg:not-group-data-sidebar-collapsed:translate-x-0 max-lg:hidden xl:w-80 lg:dark:border-white/10 dark:bg-zinc-900"
+        >
           <Navigation />
         </aside>
 

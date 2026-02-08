@@ -278,7 +278,7 @@ export const navigation = [
 
 export function Navigation(props) {
   return (
-    <nav {...props}>
+    <nav data-nosnippet {...props}>
       <ul role="list">
         {navigation.map((group, groupIndex) => (
           <NavigationGroup

@@ -232,7 +232,7 @@ const SearchInput = forwardRef(function SearchInput(
   let inputProps = autocomplete.getInputProps({ inputElement: null })
 
   return (
-    <div className="group relative flex h-12">
+    <div className="group relative flex h-12" data-nosnippet>
       <SearchIcon className="pointer-events-none absolute top-0 left-3 h-full w-5 stroke-zinc-500" />
       <input
         ref={inputRef}
@@ -307,6 +307,7 @@ function SearchDialog({ open, setOpen, className, onNavigate = () => { } }) {
 
   return (
     <Dialog
+      data-nosnippet
       open={open}
       onClose={() => {
         setOpen(false)
@@ -396,15 +397,16 @@ export function Search() {
   }, [])
 
   return (
-    <div className="hidden lg:block lg:max-w-2xl lg:flex-auto">
+    <div className="hidden lg:block lg:max-w-2xl lg:flex-auto" data-nosnippet>
       <button
+        data-nosnippet
         type="button"
         className="hidden h-8 w-full items-center gap-2 rounded-full bg-white pr-3 pl-2 text-sm text-zinc-500 ring-1 ring-zinc-900/10 transition hover:ring-zinc-900/20 lg:flex dark:bg-white/5 dark:text-zinc-400 dark:ring-white/10 dark:ring-inset dark:hover:ring-white/20"
         {...buttonProps}
       >
         <SearchIcon className="h-5 w-5 stroke-current" />
         Find something...
-        <kbd className="ml-auto text-2xs text-zinc-400 dark:text-zinc-500">
+        <kbd className="ml-auto text-2xs text-zinc-400 dark:text-zinc-500" data-nosnippet>
           <kbd className="font-sans">{modifierKey}</kbd>
           <kbd className="font-sans">K</kbd>
         </kbd>
@@ -421,8 +423,9 @@ export function MobileSearch() {
   let { buttonProps, dialogProps } = useSearchProps()
 
   return (
-    <div className="contents lg:hidden">
+    <div className="contents lg:hidden" data-nosnippet>
       <button
+        data-nosnippet
         type="button"
         className="relative flex size-6 items-center justify-center rounded-md transition hover:bg-zinc-900/5 lg:hidden dark:hover:bg-white/5"
         aria-label="Find something..."

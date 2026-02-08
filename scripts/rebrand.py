@@ -236,6 +236,13 @@ export const useSidebarStore = create()((set) => ({
 ]"""
     )
 
+    # Ensure navigation container is excluded from snippets
+    tool.replace_in_file(
+        'src/components/Navigation.jsx',
+        r'<nav \{\.\.\.props\}>',
+        """<nav data-nosnippet {...props}>"""
+    )
+
     # 5. Mobile Navigation
     # Replace the MobileNavigation component and store
     tool.replace_in_file(
@@ -297,6 +304,24 @@ export const useSidebarStore = create()((set) => ({
 import { useSidebarStore } from '@/hooks/useSidebarStore'"""
     )
 
+    # Ensure mobile navigation dialog/drawer text is excluded from snippets
+    tool.replace_in_file(
+        'src/components/MobileNavigation.jsx',
+        r'<Dialog\s+transition\s+open=\{isOpen\}\s+onClose=\{close\}',
+        """<Dialog
+      transition
+      open={isOpen}
+      onClose={close}
+      data-nosnippet"""
+    )
+    tool.replace_in_file(
+        'src/components/MobileNavigation.jsx',
+        r'<motion\.div\s+layoutScroll',
+        """<motion.div
+            layoutScroll
+            data-nosnippet"""
+    )
+
 
     # 6. Header
     # Replace the Header component
@@ -316,6 +341,7 @@ import { useSidebarStore } from '@/hooks/useSidebarStore'"""
     <motion.div
       {...props}
       ref={ref}
+      data-nosnippet
       className={clsx(
         className,
         'fixed inset-x-0 top-0 z-50 flex h-14 items-center justify-between gap-12 px-4 transition-all duration-300 sm:px-6 lg:px-8',
@@ -479,7 +505,7 @@ import { HeroPattern } from '@/components/HeroPattern'"""
       >
         <Header />
 
-        <aside className="fixed bottom-0 left-0 top-14 z-40 w-72 -translate-x-full overflow-y-auto border-r border-zinc-900/10 bg-white px-6 pt-6 pb-8 transition-transform duration-300 ease-in-out lg:not-group-data-sidebar-collapsed:translate-x-0 max-lg:hidden xl:w-80 lg:dark:border-white/10 dark:bg-zinc-900">
+        <aside data-nosnippet className="fixed bottom-0 left-0 top-14 z-40 w-72 -translate-x-full overflow-y-auto border-r border-zinc-900/10 bg-white px-6 pt-6 pb-8 transition-transform duration-300 ease-in-out lg:not-group-data-sidebar-collapsed:translate-x-0 max-lg:hidden xl:w-80 lg:dark:border-white/10 dark:bg-zinc-900">
           <Navigation />
         </aside>
 
@@ -671,6 +697,7 @@ import { useSidebarStore } from '@/hooks/useSidebarStore'"""
 
   return (
     <Dialog
+      data-nosnippet
       open={open}
       onClose={() => {
         setOpen(false)
@@ -689,7 +716,7 @@ import { useSidebarStore } from '@/hooks/useSidebarStore'"""
                 inputElement: inputRef.current,
               })}
             >
-              <div className="flex h-12 items-center gap-2 border-b border-zinc-900/7.5 px-4 dark:border-white/7.5">
+              <div data-nosnippet className="flex h-12 items-center gap-2 border-b border-zinc-900/7.5 px-4 dark:border-white/7.5">
                 <SearchIcon className="h-5 w-5 fill-zinc-500 dark:fill-zinc-400" />
                 <input
                   ref={inputRef}
@@ -745,15 +772,16 @@ import { useSidebarStore } from '@/hooks/useSidebarStore'"""
   }, [])
 
   return (
-    <div className="hidden lg:block lg:max-w-2xl lg:flex-auto">
+    <div className="hidden lg:block lg:max-w-2xl lg:flex-auto" data-nosnippet>
       <button
+        data-nosnippet
         type="button"
         className="hidden h-8 w-full items-center gap-2 rounded-full bg-white pr-3 pl-2 text-sm text-zinc-500 ring-1 ring-zinc-900/10 transition hover:ring-zinc-900/20 lg:flex dark:bg-white/5 dark:text-zinc-400 dark:ring-white/10 dark:ring-inset dark:hover:ring-white/20"
         {...buttonProps}
       >
         <SearchIcon className="h-5 w-5 stroke-current" />
         Find something...
-        <kbd className="ml-auto text-2xs text-zinc-400 dark:text-zinc-500">
+        <kbd className="ml-auto text-2xs text-zinc-400 dark:text-zinc-500" data-nosnippet>
           <kbd className="font-sans">{modifierKey}</kbd>
           <kbd className="font-sans">K</kbd>
         </kbd>
@@ -774,8 +802,9 @@ import { useSidebarStore } from '@/hooks/useSidebarStore'"""
   let { buttonProps, dialogProps } = useSearchProps()
 
   return (
-    <div className="contents lg:hidden">
+    <div className="contents lg:hidden" data-nosnippet>
       <button
+        data-nosnippet
         type="button"
         className="relative flex size-6 items-center justify-center rounded-md transition hover:bg-zinc-900/5 lg:hidden dark:hover:bg-white/5"
         aria-label="Find something..."
@@ -822,7 +851,7 @@ import { useSidebarStore } from '@/hooks/useSidebarStore'"""
         r'export function Footer\(\) \{[\s\S]*?\}',
         """export function Footer() {
   return (
-    <footer className="mx-auto w-full max-w-2xl space-y-10 pb-2 lg:max-w-5xl group-data-sidebar-collapsed:lg:max-w-7xl">
+    <footer data-nosnippet className="mx-auto w-full max-w-2xl space-y-10 pb-2 lg:max-w-5xl group-data-sidebar-collapsed:lg:max-w-7xl">
       <PageNavigation />
       <SmallPrint />
     </footer>
