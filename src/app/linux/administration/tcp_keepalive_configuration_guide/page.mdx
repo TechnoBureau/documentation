@@ -1,0 +1,2412 @@
+---
+author: Ganapathi Chidambaram
+date: 2026-02-08
+keywords:
+  - tcpkeepalive
+  - keepalive guide
+---
+
+# TCP Keepalive Configuration Guide: AWS, Azure, NGINX Ingress
+
+A comprehensive guide for configuring TCP keepalive and load balancer timeouts in AWS and Azure with detailed NGINX Ingress configurations.
+
+---
+
+## Table of Contents
+
+1. [Architecture Overview](#1-architecture-overview)
+2. [Cloud Load Balancer Configuration](#2-cloud-load-balancer-configuration)
+3. [TCP Keepalive Fundamentals](#3-tcp-keepalive-fundamentals)
+4. [NGINX Ingress Controllers](#4-nginx-ingress-controllers)
+5. [Pure NGINX Configuration](#5-pure-nginx-configuration)
+6. [Database Proxy Connections](#6-database-proxy-connections)
+7. [Complete Examples](#7-complete-examples)
+
+---
+
+## 1. Architecture Overview
+
+### Multi-Layer Connection Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         CLIENT                                      │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │
+                             │ Connection A (HTTP/HTTPS)
+                             │ Controlled by: Cloud LB timeout
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    CLOUD LOAD BALANCER                              │
+│  AWS: ALB (60s) / NLB (350s)                                        │
+│  Azure: Standard LB (240s, configurable 4-30 min)                   │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │
+                             │ Connection B (TCP)
+                             │ ⚠️  CRITICAL: Configure TCP keepalive here
+                             │ Controlled by: tcp_keepalive_time
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    NGINX INGRESS CONTROLLER                         │
+│  • Terminates client connection (A→B)                               │
+│  • Creates new connection to backend (C)                            │
+│  • Manages connection pooling                                       │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │
+                             │ Connection C (HTTP/TCP)
+                             │ Controlled by: upstream_keepalive_*
+                             │ No Cloud LB timeout (internal)
+                             ▼
+┌──────────────────────────────────────────────────────────────────-───┐
+│                    BACKEND SERVICE / DATABASE                        │
+│  • Application pods                                                  │
+│  • Database servers                                                  │
+└───────────────────────────────────────────────────────────────────-──┘
+```
+
+### Key Observations
+
+1. **Connection B is critical**: This is where cloud LB idle timeout applies
+2. **Connection C is independent**: Internal cluster traffic, no external LB timeout
+3. **NGINX terminates and re-creates**: Two separate TCP connections
+4. **TCP keepalive only affects the connection where it's configured**
+
+---
+
+## 2. Cloud Load Balancer Configuration
+
+### AWS Load Balancer Service Annotations
+
+#### Application Load Balancer (ALB)
+
+**Default Idle Timeout**: 60 seconds
+**Configurable Range**: 1-4000 seconds
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress
+  namespace: ingress-nginx
+  annotations:
+    # Specify ALB
+    service.beta.kubernetes.io/aws-load-balancer-type: "alb"
+
+    # ⚠️ NOTE: ALB idle timeout is NOT configurable via service annotation
+    # Must configure via AWS Console, CLI, or Terraform
+
+    # ALB Scheme (internet-facing or internal)
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+
+    # Target type
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+
+    # SSL Certificate
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:region:account:certificate/id"
+
+    # Backend protocol
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+
+    # Health check settings
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/healthz"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "30"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout: "5"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    app.kubernetes.io/name: ingress-nginx
+```
+
+**Configure ALB Idle Timeout via AWS CLI:**
+
+```bash
+# Get the ALB ARN from the service
+ALB_ARN=$(aws elbv2 describe-load-balancers \
+  --query 'LoadBalancers[?contains(LoadBalancerName, `k8s`)].LoadBalancerArn' \
+  --output text)
+
+# Modify idle timeout (60s default → 120s)
+aws elbv2 modify-load-balancer-attributes \
+  --load-balancer-arn $ALB_ARN \
+  --attributes Key=idle_timeout.timeout_seconds,Value=120
+```
+
+**Configure ALB via Terraform:**
+
+```hcl
+resource "aws_lb" "ingress_alb" {
+  name               = "eks-ingress-alb"
+  load_balancer_type = "application"
+  subnets            = var.public_subnet_ids
+  security_groups    = [aws_security_group.alb_sg.id]
+
+  # Configure idle timeout
+  idle_timeout = 120  # seconds (default: 60)
+
+  tags = {
+    Name = "eks-ingress-alb"
+  }
+}
+
+resource "aws_lb_target_group" "nginx_ingress" {
+  name     = "nginx-ingress-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = var.vpc_id
+
+  health_check {
+    enabled             = true
+    path                = "/healthz"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    matcher             = "200"
+  }
+
+  deregistration_delay = 30
+}
+```
+
+**Official Documentation:**
+- Service Annotations: https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.6/guide/service/annotations/
+- ALB Idle Timeout: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#connection-idle-timeout
+
+---
+
+#### Network Load Balancer (NLB)
+
+**Default Idle Timeout**: 350 seconds (FIXED, not configurable)
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress
+  namespace: ingress-nginx
+  annotations:
+    # Specify NLB (default for type: LoadBalancer in AWS)
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+
+    # ⚠️ NLB idle timeout is FIXED at 350 seconds
+    # Cannot be changed via any method
+
+    # NLB-specific settings
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+
+    # Target type: instance or ip
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+
+    # Enable cross-zone load balancing
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+
+    # Proxy Protocol v2 (preserves source IP)
+    service.beta.kubernetes.io/aws-load-balancer-proxy-protocol: "*"
+
+    # Backend protocol
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "tcp"
+
+    # SSL/TLS termination at NLB
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:region:account:certificate/id"
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+
+    # Health check
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "http"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/healthz"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "80"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "30"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout: "10"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local  # Preserve source IP
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    app.kubernetes.io/name: ingress-nginx
+```
+
+**Important NLB Characteristics:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  AWS Network Load Balancer (NLB)                        │
+│                                                         │
+│  Idle Timeout: 350 seconds (FIXED)                      │
+│  ✗ Cannot be configured                                 │
+│  ✗ No service annotation                                │
+│  ✗ No CLI/API parameter                                 │
+│  ✗ No Terraform setting                                 │
+│                                                         │
+│  ⚠️  You MUST configure TCP keepalive < 350s            │
+│      Recommended: tcp_keepalive_time = 180s             │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Official Documentation:**
+- NLB Annotations: https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.6/guide/service/nlb/
+- NLB Idle Timeout: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#connection-idle-timeout
+
+---
+
+### Azure Load Balancer Service Annotations
+
+#### Standard Load Balancer
+
+**Default Idle Timeout**: 240 seconds (4 minutes)
+**Configurable Range**: 240-1800 seconds (4-30 minutes)
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress
+  namespace: ingress-nginx
+  annotations:
+    # Load balancer type (Basic or Standard)
+    service.beta.kubernetes.io/azure-load-balancer-sku: "Standard"
+
+    # ✅ Configure TCP idle timeout (in minutes)
+    service.beta.kubernetes.io/azure-load-balancer-tcp-idle-timeout: "10"  # 10 minutes (600s)
+    # Valid range: 4-30 minutes
+    # Default: 4 minutes (240s)
+
+    # Internal or public LB
+    service.beta.kubernetes.io/azure-load-balancer-internal: "false"
+
+    # Specific subnet for internal LB
+    # service.beta.kubernetes.io/azure-load-balancer-internal-subnet: "ingress-subnet"
+
+    # Health probe settings
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-protocol: "http"
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/healthz"
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-interval: "15"
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-num-of-probe: "2"
+
+    # Resource group (if different from cluster)
+    # service.beta.kubernetes.io/azure-load-balancer-resource-group: "custom-rg"
+
+    # Specific public IP
+    # service.beta.kubernetes.io/azure-load-balancer-ipv4: "20.30.40.50"
+
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    app.kubernetes.io/name: ingress-nginx
+```
+
+**Configure via Azure CLI:**
+
+```bash
+# Get the load balancer name
+LB_NAME=$(az network lb list \
+  --resource-group MC_myResourceGroup_myAKSCluster_eastus \
+  --query "[?contains(name, 'kubernetes')].name" \
+  --output tsv)
+
+# Get the LB rule name
+RULE_NAME=$(az network lb rule list \
+  --resource-group MC_myResourceGroup_myAKSCluster_eastus \
+  --lb-name $LB_NAME \
+  --query "[0].name" \
+  --output tsv)
+
+# Update idle timeout (4-30 minutes)
+az network lb rule update \
+  --resource-group MC_myResourceGroup_myAKSCluster_eastus \
+  --lb-name $LB_NAME \
+  --name $RULE_NAME \
+  --idle-timeout 10  # minutes
+```
+
+**Configure via Terraform:**
+
+```hcl
+resource "azurerm_lb" "ingress_lb" {
+  name                = "aks-ingress-lb"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  sku                 = "Standard"
+
+  frontend_ip_configuration {
+    name                 = "PublicIPAddress"
+    public_ip_address_id = azurerm_public_ip.ingress_ip.id
+  }
+}
+
+resource "azurerm_lb_rule" "http" {
+  loadbalancer_id                = azurerm_lb.ingress_lb.id
+  name                           = "http-rule"
+  protocol                       = "Tcp"
+  frontend_port                  = 80
+  backend_port                   = 80
+  frontend_ip_configuration_name = "PublicIPAddress"
+  backend_address_pool_ids       = [azurerm_lb_backend_address_pool.ingress_pool.id]
+  probe_id                       = azurerm_lb_probe.http_probe.id
+
+  # Configure idle timeout (4-30 minutes)
+  idle_timeout_in_minutes = 10
+}
+
+resource "azurerm_lb_probe" "http_probe" {
+  loadbalancer_id = azurerm_lb.ingress_lb.id
+  name            = "http-probe"
+  protocol        = "Http"
+  port            = 80
+  request_path    = "/healthz"
+  interval_in_seconds = 15
+  number_of_probes    = 2
+}
+```
+
+**Timeout Configuration Examples:**
+
+| Annotation Value | Actual Timeout | Use Case |
+|-----------------|----------------|----------|
+| `"4"` | 240s (default) | Short-lived HTTP APIs |
+| `"10"` | 600s | Long-polling, SSE |
+| `"20"` | 1200s | WebSocket, streaming |
+| `"30"` | 1800s (max) | Ultra long-lived connections |
+
+**Official Documentation:**
+- Service Annotations: https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/
+- Azure LB Idle Timeout: https://learn.microsoft.com/en-us/azure/load-balancer/load-balancer-tcp-idle-timeout
+
+---
+
+### Summary: Service-Level LB Configuration
+
+```yaml
+# AWS ALB - Cannot configure timeout via annotation
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "alb"
+    # ❌ No annotation for idle timeout
+    # ✅ Configure via: AWS CLI, Console, Terraform
+spec:
+  type: LoadBalancer
+
+---
+# AWS NLB - Fixed 350s timeout
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    # ❌ Timeout is FIXED at 350s, cannot be changed
+spec:
+  type: LoadBalancer
+
+---
+# Azure Standard LB - Configurable via annotation
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-sku: "Standard"
+    # ✅ Configure timeout directly
+    service.beta.kubernetes.io/azure-load-balancer-tcp-idle-timeout: "10"  # minutes
+spec:
+  type: LoadBalancer
+```
+
+---
+
+## 3. TCP Keepalive Fundamentals
+
+### How TCP Keepalive Works
+
+```
+Connection established at t=0
+│
+│ [Application is idle, no data sent]
+│
+├─ t = tcp_keepalive_time (e.g., 120s)
+│  │
+│  ├─> Send TCP keepalive probe #1
+│  │   (ACK packet with seq# = last_ack - 1)
+│  │
+│  └─> Wait for ACK response
+│      │
+│      ├─ Response received?
+│      │  └─> YES: Connection alive, reset timer
+│      │
+│      └─> NO: Wait tcp_keepalive_intvl (e.g., 15s)
+│
+├─ t = 120s + 15s = 135s
+│  │
+│  ├─> Send TCP keepalive probe #2
+│  └─> Wait for ACK
+│      └─> NO: Wait tcp_keepalive_intvl
+│
+├─ t = 135s + 15s = 150s
+│  ├─> Send probe #3
+│  └─> Continue...
+│
+├─ After tcp_keepalive_probes (e.g., 9) failed probes
+│  │
+│  └─> t = 120s + (15s × 9) = 255s
+│     │
+│     └─> Declare connection DEAD
+│        Send RST to close connection
+│
+```
+
+### Load Balancer Flow Table Behavior
+
+```
+┌──────────────────────────────────────────────────────────┐
+│             LOAD BALANCER FLOW TABLE                     │
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│  Flow Entry: Client:12345 ←→ Backend:80                  │
+│  Created at: t=0                                         │
+│  Last Packet: t=120                                      │
+│  Idle Timer: 240s                                        │
+│                                                          │
+│  ┌─────────────────────────────────────────-┐            │
+│  │  Timeline:                               │            │
+│  │                                          │            │
+│  │  t=0     Connection established          │            │
+│  │  t=120   Last data packet                │            │
+│  │          [Idle timer starts]             │            │
+│  │  t=200   TCP keepalive probe arrives ✓   │            │
+│  │          [Idle timer RESETS to 0]        │            │
+│  │  t=320   Another keepalive probe ✓       │            │
+│  │          [Idle timer RESETS to 0]        │            │
+│  │                                          │            │
+│  │  ✅ Connection stays alive               │            │
+│  └─────────────────────────────────────────-┘            │
+│                                                          │
+│  Without keepalive:                                      │
+│  ┌─────────────────────────────────────────-┐            │
+│  │  t=0     Connection established          │            │
+│  │  t=120   Last data packet                │            │
+│  │          [Idle timer starts]             │            │
+│  │  t=360   Idle timeout (240s elapsed)     │            │
+│  │          [Flow entry REMOVED]            │            │
+│  │  t=400   Client sends packet             │            │
+│  │          ❌ No flow entry found          │            │
+│  │          → Send TCP RST to both sides    │            │
+│  └─────────────────────────────────────────-┘            │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Recommended Values by Cloud Provider
+
+```
+┌─────────────┬─────────────┬──────────────┬─────────────┬──────────────┐
+│  Provider   │  LB Type    │  LB Timeout  │ keepalive_  │ keepalive_   │
+│             │             │              │   time      │   intvl      │
+├─────────────┼─────────────┼──────────────┼─────────────┼──────────────┤
+│ AWS         │ ALB         │ 60s (def)    │ 30s         │ 10s          │
+│             │             │ (1-4000s)    │             │              │
+├─────────────┼─────────────┼──────────────┼─────────────┼──────────────┤
+│ AWS         │ ALB         │ 120s (cust)  │ 60s         │ 10s          │
+│             │             │              │             │              │
+├─────────────┼─────────────┼──────────────┼─────────────┼──────────────┤
+│ AWS         │ NLB         │ 350s (fixed) │ 180s        │ 15s          │
+├─────────────┼─────────────┼──────────────┼─────────────┼──────────────┤
+│ Azure       │ Standard    │ 240s (def)   │ 120s        │ 15s          │
+├─────────────┼─────────────┼──────────────┼─────────────┼──────────────┤
+│ Azure       │ Standard    │ 600s (10m)   │ 300s        │ 20s          │
+├─────────────┼─────────────┼──────────────┼─────────────┼──────────────┤
+│ Azure       │ Standard    │ 1800s (30m)  │ 900s        │ 30s          │
+└─────────────┴─────────────┴──────────────┴─────────────┴──────────────┘
+
+Formula: tcp_keepalive_time = LB_timeout × 0.5 (50% safety margin)
+         tcp_keepalive_intvl = 10-30s (based on network latency)
+         tcp_keepalive_probes = 6-9 (balance detection vs tolerance)
+```
+
+---
+
+## 4. NGINX Ingress Controllers
+
+### Two Different NGINX Ingress Controllers
+
+```
+┌─────────────────────────────────────────────────────────────────-┐
+│                    ⚠️ IMPORTANT DISTINCTION                      │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. Kubernetes Community NGINX Ingress Controller                │
+│     Repository: kubernetes/ingress-nginx                         │
+│     IngressClass: nginx                                          │
+│     ConfigMap: ingress-nginx/ingress-nginx-controller            │
+│     Image: registry.k8s.io/ingress-nginx/controller              │
+│                                                                  │
+│  2. NGINX Inc. Ingress Controller                                │
+│     Repository: nginxinc/kubernetes-ingress                      │
+│     IngressClass: nginx (or custom)                              │
+│     ConfigMap: Different structure                               │
+│     Image: nginx/nginx-ingress                                   │
+│                                                                  │
+│  ⚠️ Different configurations, annotations, features              │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 4.1 Kubernetes Community NGINX Ingress
+
+#### System-Level TCP Keepalive Configuration
+
+**Option 1: Pod Security Context (Recommended)**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ingress-nginx
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ingress-nginx
+    spec:
+      # Configure TCP keepalive via sysctl
+      securityContext:
+        sysctls:
+        # When to start sending keepalive probes (seconds)
+        - name: net.ipv4.tcp_keepalive_time
+          value: "120"    # For Azure 240s / AWS NLB 350s
+
+        # Interval between keepalive probes (seconds)
+        - name: net.ipv4.tcp_keepalive_intvl
+          value: "15"
+
+        # Number of failed probes before declaring connection dead
+        - name: net.ipv4.tcp_keepalive_probes
+          value: "9"
+
+      containers:
+      - name: controller
+        image: registry.k8s.io/ingress-nginx/controller:v1.9.5
+        args:
+        - /nginx-ingress-controller
+        - --configmap=$(POD_NAMESPACE)/ingress-nginx-controller
+        - --tcp-services-configmap=$(POD_NAMESPACE)/tcp-services
+        - --udp-services-configmap=$(POD_NAMESPACE)/udp-services
+        - --ingress-class=nginx
+        - --election-id=ingress-nginx-leader
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 10254
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 10254
+```
+
+**Option 2: Init Container (Alternative)**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+spec:
+  template:
+    spec:
+      # Init container to set sysctl values
+      initContainers:
+      - name: sysctl-tuner
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          sysctl -w net.ipv4.tcp_keepalive_time=120
+          sysctl -w net.ipv4.tcp_keepalive_intvl=15
+          sysctl -w net.ipv4.tcp_keepalive_probes=9
+        securityContext:
+          privileged: true
+
+      containers:
+      - name: controller
+        image: registry.k8s.io/ingress-nginx/controller:v1.9.5
+        # ... rest of configuration
+```
+
+---
+
+#### Global NGINX Configuration via ConfigMap
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+data:
+  # ========================================
+  # Client-Side Connection Settings
+  # ========================================
+
+  # How long to keep idle client connections open (seconds)
+  keep-alive: "120"
+  # Should be LESS than LB timeout
+  # AWS ALB 60s → use 50s
+  # AWS NLB 350s → use 300s
+  # Azure 240s → use 120s
+
+  # Maximum requests per client connection
+  keep-alive-requests: "1000"
+
+  # Client timeouts
+  client-body-timeout: "120"
+  client-header-timeout: "120"
+
+  # ========================================
+  # Upstream (Backend) Connection Settings
+  # ========================================
+
+  # Enable connection pooling to upstreams
+  upstream-keepalive-connections: "64"
+  # Number of idle keepalive connections per upstream server
+  # Higher = more connection reuse, more memory
+  # Recommended: 32-128 depending on traffic
+
+  # How long to keep idle upstream connections (seconds)
+  upstream-keepalive-timeout: "60"
+
+  # Maximum requests on single upstream connection
+  upstream-keepalive-requests: "1000"
+
+  # ========================================
+  # Proxy Timeouts
+  # ========================================
+
+  # Timeout for establishing connection to upstream
+  proxy-connect-timeout: "10"
+
+  # Timeout for reading response from upstream
+  proxy-read-timeout: "120"
+
+  # Timeout for sending request to upstream
+  proxy-send-timeout: "120"
+
+  # ========================================
+  # Advanced Settings
+  # ========================================
+
+  # Enable SO_KEEPALIVE on upstream connections
+  # This enables TCP keepalive at socket level
+  upstream-keepalive-use-keepalive: "true"
+
+  # Log level
+  error-log-level: "notice"
+
+  # Enable HTTP/2
+  use-http2: "true"
+
+  # Proxy buffer size
+  proxy-buffer-size: "8k"
+  proxy-buffers-number: "4"
+```
+
+**Official Documentation:**
+- ConfigMap Options: https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/
+
+---
+
+#### Per-Ingress Route Configuration via Annotations
+
+**Basic Ingress with Custom Timeouts:**
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-ingress
+  namespace: default
+  annotations:
+    # Specify ingress class
+    kubernetes.io/ingress.class: "nginx"
+    # Or use ingressClassName field instead
+
+    # ========================================
+    # Timeout Annotations (per-route override)
+    # ========================================
+
+    # Override proxy read timeout for this route
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+
+    # Override proxy send timeout
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+
+    # Override proxy connect timeout
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+
+    # ========================================
+    # Connection Settings
+    # ========================================
+
+    # Override upstream keepalive timeout
+    nginx.ingress.kubernetes.io/upstream-keepalive-timeout: "60"
+
+    # ========================================
+    # CORS (if needed)
+    # ========================================
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+
+spec:
+  ingressClassName: nginx  # Alternative to annotation
+  rules:
+  - host: api.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-service
+            port:
+              number: 8080
+  tls:
+  - hosts:
+    - api.example.com
+    secretName: api-tls-secret
+```
+
+**Long-Lived Connection Ingress (WebSocket, SSE):**
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: websocket-ingress
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+
+    # ========================================
+    # Long-lived Connection Configuration
+    # ========================================
+
+    # Very long timeouts for WebSocket/SSE
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"   # 1 hour
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"   # 1 hour
+
+    # WebSocket-specific
+    nginx.ingress.kubernetes.io/websocket-services: "websocket-svc"
+    # This automatically sets:
+    # - proxy_set_header Upgrade $http_upgrade;
+    # - proxy_set_header Connection "upgrade";
+
+    # Connection header for WebSocket
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      proxy_http_version 1.1;
+
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: ws.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: websocket-svc
+            port:
+              number: 8080
+```
+
+**Advanced: Custom NGINX Configuration Snippet:**
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: advanced-ingress
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+
+    # ========================================
+    # Configuration Snippet (server block)
+    # ========================================
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      # Custom keepalive settings
+      keepalive_timeout 120s;
+      keepalive_requests 1000;
+
+      # Custom proxy settings
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";
+
+      # Add custom header
+      add_header X-Custom-Header "value";
+
+    # ========================================
+    # Server Snippet (for more advanced config)
+    # ========================================
+    nginx.ingress.kubernetes.io/server-snippet: |
+      # This goes into the server {} block
+
+      # Custom location for health check
+      location /custom-health {
+        access_log off;
+        return 200 "healthy\n";
+      }
+
+spec:
+  rules:
+  - host: advanced.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backend-svc
+            port:
+              number: 8080
+```
+
+**All Available Annotations:**
+
+Official Documentation: https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/
+
+Key annotations for connection management:
+- `nginx.ingress.kubernetes.io/proxy-connect-timeout`
+- `nginx.ingress.kubernetes.io/proxy-send-timeout`
+- `nginx.ingress.kubernetes.io/proxy-read-timeout`
+- `nginx.ingress.kubernetes.io/proxy-next-upstream-timeout`
+- `nginx.ingress.kubernetes.io/upstream-keepalive-timeout`
+- `nginx.ingress.kubernetes.io/websocket-services`
+- `nginx.ingress.kubernetes.io/configuration-snippet`
+- `nginx.ingress.kubernetes.io/server-snippet`
+
+---
+
+### 4.2 NGINX Inc. Ingress Controller
+
+NGINX Inc. provides its own commercial Ingress Controller with different configuration methods.
+
+#### Global Configuration via ConfigMap
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: nginx-ingress
+data:
+  # Proxy timeouts
+  proxy-connect-timeout: "10s"
+  proxy-read-timeout: "120s"
+  proxy-send-timeout: "120s"
+
+  # Keepalive
+  keepalive: "64"
+
+  # Client settings
+  client-max-body-size: "10m"
+
+  # HTTP/2
+  http2: "True"
+```
+
+#### VirtualServer Custom Resource (NGINX Inc. specific)
+
+```yaml
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: api-virtual-server
+  namespace: default
+spec:
+  host: api.example.com
+  tls:
+    secret: api-tls-secret
+
+  # Upstream configuration
+  upstreams:
+  - name: api-backend
+    service: api-service
+    port: 8080
+
+    # Connection settings
+    keepalive: 64
+    connect-timeout: 10s
+    read-timeout: 120s
+    send-timeout: 120s
+
+    # Load balancing
+    lb-method: round_robin
+
+    # Health check
+    healthCheck:
+      enable: true
+      path: /health
+      interval: 10s
+      jitter: 3s
+      fails: 3
+      passes: 2
+
+  routes:
+  - path: /
+    action:
+      pass: api-backend
+```
+
+---
+
+## 5. Pure NGINX Configuration
+
+### Understanding NGINX Connection Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      NGINX Process                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │               HTTP/HTTPS Block                          │    │
+│  │  - Global HTTP settings                                 │    │
+│  │  - keepalive_timeout (client-side)                      │    │
+│  │  - keepalive_requests                                   │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                           │                                     │
+│                           ↓                                     │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │               Upstream Block                            │    │
+│  │  - Backend server pool                                  │    │
+│  │  - keepalive (connection pool size)                     │    │
+│  │  - keepalive_timeout (upstream-side)                    │    │
+│  │  - keepalive_requests                                   │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                           │                                     │
+│                           ↓                                     │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │               Server Block                              │    │
+│  │  - listen 80/443                                        │    │
+│  │  - server_name                                          │    │
+│  │  - keepalive_timeout (can override global)              │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                           │                                     │
+│                           ↓                                     │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │               Location Block                            │    │
+│  │  - proxy_pass                                           │    │
+│  │  - proxy_http_version 1.1                               │    │
+│  │  - proxy_set_header Connection ""                       │    │
+│  │  - proxy_read_timeout                                   │    │
+│  │  - proxy_send_timeout                                   │    │
+│  │  - proxy_connect_timeout                                │    │
+│  └─────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Complete NGINX Configuration Example
+
+#### `/etc/nginx/nginx.conf` (Main Configuration)
+
+```nginx
+# User and worker processes
+user nginx;
+worker_processes auto;
+error_log /var/log/nginx/error.log notice;
+pid /var/run/nginx.pid;
+
+# Load dynamic modules
+include /usr/share/nginx/modules/*.conf;
+
+events {
+    worker_connections 4096;
+    use epoll;
+    multi_accept on;
+}
+
+http {
+    # =============================================
+    # Basic Settings
+    # =============================================
+
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    # Logging
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for" '
+                    'rt=$request_time uct="$upstream_connect_time" '
+                    'uht="$upstream_header_time" urt="$upstream_response_time"';
+
+    access_log /var/log/nginx/access.log main;
+
+    # =============================================
+    # Performance Settings
+    # =============================================
+
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+
+    # =============================================
+    # Client Connection Keepalive Settings
+    # (How long NGINX keeps client connections open)
+    # =============================================
+
+    # Timeout for keepalive connections with clients
+    # Should be LESS than cloud LB timeout
+    keepalive_timeout 120s;
+
+    # Maximum requests per client connection
+    keepalive_requests 1000;
+
+    # =============================================
+    # Client Timeouts
+    # =============================================
+
+    client_body_timeout 120s;
+    client_header_timeout 120s;
+    send_timeout 120s;
+
+    # =============================================
+    # Buffer Settings
+    # =============================================
+
+    client_max_body_size 10m;
+    client_body_buffer_size 128k;
+
+    # =============================================
+    # Gzip Compression
+    # =============================================
+
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/xml text/javascript
+               application/json application/javascript application/xml+rss
+               application/rss+xml font/truetype font/opentype
+               application/vnd.ms-fontobject image/svg+xml;
+
+    # =============================================
+    # Upstream Definitions
+    # (Backend connection pooling)
+    # =============================================
+
+    upstream api_backend {
+        # Backend servers
+        server api-pod-1:8080 max_fails=3 fail_timeout=30s;
+        server api-pod-2:8080 max_fails=3 fail_timeout=30s;
+        server api-pod-3:8080 max_fails=3 fail_timeout=30s;
+
+        # ⚠️ CRITICAL: Connection pooling configuration
+
+        # Number of idle keepalive connections to maintain
+        # This is the connection pool size
+        keepalive 64;
+
+        # How long to keep idle upstream connections open
+        keepalive_timeout 60s;
+
+        # Maximum requests per upstream connection
+        keepalive_requests 1000;
+
+        # Connection queue when all upstreams are busy
+        # queue 100 timeout=10s;
+    }
+
+    upstream websocket_backend {
+        server ws-pod-1:8080;
+        server ws-pod-2:8080;
+
+        # Long-lived connections for WebSocket
+        keepalive 32;
+        keepalive_timeout 3600s;  # 1 hour for WebSocket
+    }
+
+    upstream database_proxy {
+        # Single database endpoint
+        server postgres.internal.example.com:5432;
+
+        # Connection pooling for database
+        keepalive 16;
+        keepalive_timeout 300s;  # 5 minutes
+    }
+
+    # =============================================
+    # Virtual Host Configurations
+    # =============================================
+
+    include /etc/nginx/conf.d/*.conf;
+}
+```
+
+---
+
+#### `/etc/nginx/conf.d/api.conf` (Virtual Host)
+
+```nginx
+# =============================================
+# HTTP Server (Redirect to HTTPS)
+# =============================================
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name api.example.com;
+
+    # Redirect all HTTP to HTTPS
+    location / {
+        return 301 https://$host$request_uri;
+    }
+
+    # Health check endpoint (no redirect)
+    location /healthz {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+}
+
+# =============================================
+# HTTPS Server
+# =============================================
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name api.example.com;
+
+    # SSL Configuration
+    ssl_certificate /etc/nginx/ssl/api.example.com.crt;
+    ssl_certificate_key /etc/nginx/ssl/api.example.com.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+
+    # =============================================
+    # Server-Level Keepalive (overrides global)
+    # =============================================
+
+    keepalive_timeout 120s;
+    keepalive_requests 1000;
+
+    # =============================================
+    # Logging
+    # =============================================
+
+    access_log /var/log/nginx/api.access.log main;
+    error_log /var/log/nginx/api.error.log notice;
+
+    # =============================================
+    # API Routes
+    # =============================================
+
+    location / {
+        # ⚠️ CRITICAL: Upstream connection settings
+
+        # Use the upstream pool
+        proxy_pass http://api_backend;
+
+        # MUST use HTTP/1.1 for keepalive
+        proxy_http_version 1.1;
+
+        # ⚠️ CRITICAL: Clear Connection header for upstream pooling
+        # This allows NGINX to reuse connections
+        proxy_set_header Connection "";
+
+        # Forward client information
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Timeouts for upstream
+        proxy_connect_timeout 10s;      # Time to establish connection
+        proxy_send_timeout 120s;        # Time between write operations
+        proxy_read_timeout 120s;        # Time between read operations
+
+        # Retry configuration
+        proxy_next_upstream error timeout invalid_header http_500 http_502 http_503;
+        proxy_next_upstream_tries 3;
+        proxy_next_upstream_timeout 30s;
+
+        # Buffering
+        proxy_buffering on;
+        proxy_buffer_size 8k;
+        proxy_buffers 16 8k;
+        proxy_busy_buffers_size 16k;
+    }
+
+    # =============================================
+    # Long-Polling / SSE Endpoint
+    # =============================================
+
+    location /events {
+        proxy_pass http://api_backend;
+
+        # Long-lived connection settings
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        # Very long timeouts
+        proxy_read_timeout 3600s;   # 1 hour
+        proxy_send_timeout 3600s;
+
+        # Disable buffering for streaming
+        proxy_buffering off;
+
+        # Required for SSE
+        proxy_set_header Cache-Control "no-cache";
+        proxy_set_header X-Accel-Buffering "no";
+
+        # Chunked transfer encoding
+        chunked_transfer_encoding on;
+    }
+
+    # =============================================
+    # Health Check
+    # =============================================
+
+    location /healthz {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+}
+```
+
+---
+
+#### `/etc/nginx/conf.d/websocket.conf` (WebSocket Configuration)
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name ws.example.com;
+
+    ssl_certificate /etc/nginx/ssl/ws.example.com.crt;
+    ssl_certificate_key /etc/nginx/ssl/ws.example.com.key;
+
+    # =============================================
+    # WebSocket Configuration
+    # =============================================
+
+    location / {
+        proxy_pass http://websocket_backend;
+
+        # WebSocket requires HTTP/1.1
+        proxy_http_version 1.1;
+
+        # ⚠️ CRITICAL: WebSocket upgrade headers
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Forward headers
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Long timeouts for WebSocket
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 3600s;   # 1 hour
+        proxy_read_timeout 3600s;   # 1 hour
+
+        # Disable buffering
+        proxy_buffering off;
+    }
+}
+```
+
+---
+
+#### `/etc/nginx/conf.d/database-proxy.conf` (Database Proxy via Stream)
+
+```nginx
+# This goes in the MAIN nginx.conf at the top level, NOT in http block
+
+stream {
+    log_format proxy '$remote_addr [$time_local] '
+                     '$protocol $status $bytes_sent $bytes_received '
+                     '$session_time "$upstream_addr" '
+                     '"$upstream_bytes_sent" "$upstream_bytes_received" "$upstream_connect_time"';
+
+    access_log /var/log/nginx/stream-access.log proxy;
+    error_log /var/log/nginx/stream-error.log notice;
+
+    # =============================================
+    # PostgreSQL Proxy
+    # =============================================
+
+    upstream postgres_backend {
+        server postgres.internal.example.com:5432;
+
+        # Stream module doesn't support keepalive directive
+        # Relies on system TCP keepalive settings
+    }
+
+    server {
+        listen 5432;
+
+        proxy_pass postgres_backend;
+
+        # TCP-level timeouts
+        proxy_timeout 300s;           # Idle timeout (5 minutes)
+        proxy_connect_timeout 10s;    # Connection timeout
+
+        # Enable TCP keepalive at socket level
+        proxy_socket_keepalive on;
+
+        # These use the system tcp_keepalive_* settings
+    }
+
+    # =============================================
+    # MySQL Proxy
+    # =============================================
+
+    upstream mysql_backend {
+        server mysql.internal.example.com:3306;
+    }
+
+    server {
+        listen 3306;
+        proxy_pass mysql_backend;
+
+        proxy_timeout 300s;
+        proxy_connect_timeout 10s;
+        proxy_socket_keepalive on;
+    }
+}
+```
+
+---
+
+### Location Block Variations
+
+#### 1. Standard REST API
+
+```nginx
+location /api {
+    proxy_pass http://api_backend;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+
+    proxy_connect_timeout 10s;
+    proxy_send_timeout 120s;
+    proxy_read_timeout 120s;
+}
+```
+
+#### 2. Static File Serving (No Upstream)
+
+```nginx
+location /static {
+    alias /var/www/static;
+
+    # Keep client connection alive
+    keepalive_timeout 120s;
+
+    # Caching headers
+    expires 1d;
+    add_header Cache-Control "public, immutable";
+}
+```
+
+#### 3. Reverse Proxy with Custom Headers
+
+```nginx
+location /external-api {
+    proxy_pass https://external-service.com;
+
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+
+    # Custom headers
+    proxy_set_header Authorization "Bearer ${API_KEY}";
+    proxy_set_header X-Custom-Header "value";
+
+    # SSL verification
+    proxy_ssl_verify on;
+    proxy_ssl_trusted_certificate /etc/nginx/ssl/ca-bundle.crt;
+
+    proxy_connect_timeout 10s;
+    proxy_read_timeout 60s;
+}
+```
+
+#### 4. Load Balancing with Health Checks
+
+```nginx
+upstream backend_with_healthcheck {
+    server backend1:8080 max_fails=3 fail_timeout=30s;
+    server backend2:8080 max_fails=3 fail_timeout=30s;
+    server backend3:8080 backup;  # Only used if others fail
+
+    keepalive 32;
+}
+
+location / {
+    proxy_pass http://backend_with_healthcheck;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+
+    # Retry on failure
+    proxy_next_upstream error timeout http_502 http_503 http_504;
+    proxy_next_upstream_tries 2;
+}
+```
+
+---
+
+## 6. Database Proxy Connections
+
+### Database Connection Challenges
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│          Database Connection Idle Timeout Problem              │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  Application → NGINX → Cloud NAT → Database                    │
+│                   │                     │                      │
+│                   │                     └─ Has idle timeout    │
+│                   └─ Proxies TCP, needs keepalive              │
+│                                                                │
+│  Common Issues:                                                │
+│  1. Database idle timeout (varies by DB)                       │
+│  2. Cloud NAT idle timeout (AWS: 350s, Azure: 240-1800s)       │
+│  3. NGINX stream proxy timeout                                 │
+│  4. No "last packet" from idle connection                      │
+│  5. Connection reset errors                                    │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### Database-Specific Idle Timeouts
+
+| Database | Default Timeout | Configuration Parameter |
+|----------|----------------|------------------------|
+| PostgreSQL | 0 (infinite) | `tcp_keepalives_idle`, `tcp_keepalives_interval`, `tcp_keepalives_count` |
+| MySQL | 28800s (8h) | `wait_timeout`, `interactive_timeout` |
+| MongoDB | 0 (infinite) | `net.maxIdleTimeMs` |
+| Redis | 0 (infinite) | `timeout` |
+| SQL Server | No default | Connection string timeout |
+
+---
+
+### NGINX Stream Proxy for PostgreSQL
+
+#### Complete Configuration
+
+```nginx
+# In main nginx.conf (outside http block)
+
+stream {
+    log_format db_proxy '$remote_addr [$time_local] '
+                        '$protocol $status $bytes_sent $bytes_received '
+                        '$session_time "$upstream_addr" '
+                        'connect_time=$upstream_connect_time';
+
+    access_log /var/log/nginx/db-proxy.log db_proxy;
+    error_log /var/log/nginx/db-proxy-error.log notice;
+
+    # =============================================
+    # PostgreSQL Upstream
+    # =============================================
+
+    upstream postgres_primary {
+        # Primary database
+        server postgres-primary.internal:5432 max_fails=3 fail_timeout=30s;
+
+        # Read replicas (optional)
+        # server postgres-replica-1.internal:5432;
+        # server postgres-replica-2.internal:5432;
+    }
+
+    # =============================================
+    # PostgreSQL Proxy Server
+    # =============================================
+
+    server {
+        listen 5432;
+        listen [::]:5432;
+
+        proxy_pass postgres_primary;
+
+        # ⚠️ CRITICAL: Idle timeout
+        # Should be LESS than:
+        # - Database wait_timeout
+        # - Cloud NAT timeout (AWS: 350s, Azure: 240-1800s)
+        # - Any firewall timeout
+        proxy_timeout 300s;  # 5 minutes
+
+        # Connection establishment timeout
+        proxy_connect_timeout 10s;
+
+        # ⚠️ CRITICAL: Enable TCP keepalive at socket level
+        # This uses system tcp_keepalive_* settings
+        proxy_socket_keepalive on;
+
+        # Number of simultaneous connections from single client
+        # proxy_downstream_connections 100;
+
+        # Upload/download rate limits (optional)
+        # proxy_upload_rate 0;
+        # proxy_download_rate 0;
+    }
+
+    # =============================================
+    # PostgreSQL SSL Proxy (Terminate SSL at NGINX)
+    # =============================================
+
+    server {
+        listen 5433 ssl;
+
+        # SSL configuration
+        ssl_certificate /etc/nginx/ssl/postgres.crt;
+        ssl_certificate_key /etc/nginx/ssl/postgres.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+
+        proxy_pass postgres_primary;
+        proxy_timeout 300s;
+        proxy_connect_timeout 10s;
+        proxy_socket_keepalive on;
+
+        # Verify client certificates (optional)
+        # ssl_verify_client on;
+        # ssl_client_certificate /etc/nginx/ssl/ca.crt;
+    }
+}
+```
+
+---
+
+### System-Level TCP Keepalive for Database Connections
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-db-proxy
+  namespace: database
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-db-proxy
+  template:
+    metadata:
+      labels:
+        app: nginx-db-proxy
+    spec:
+      # ⚠️ CRITICAL: TCP keepalive for database connections
+      securityContext:
+        sysctls:
+        # Start keepalive after 60s idle
+        # (Well before Cloud NAT timeout)
+        - name: net.ipv4.tcp_keepalive_time
+          value: "60"
+
+        # Send probe every 10s
+        - name: net.ipv4.tcp_keepalive_intvl
+          value: "10"
+
+        # 9 failed probes before giving up
+        - name: net.ipv4.tcp_keepalive_probes
+          value: "9"
+
+        # Total detection time: 60 + (10 × 9) = 150s
+
+      containers:
+      - name: nginx
+        image: nginx:1.25-alpine
+        ports:
+        - containerPort: 5432
+          name: postgres
+          protocol: TCP
+        - containerPort: 3306
+          name: mysql
+          protocol: TCP
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-db-proxy-config
+```
+
+---
+
+### PostgreSQL Client Configuration
+
+#### Connection String with Keepalive
+
+**Python (psycopg2):**
+
+```python
+import psycopg2
+
+# Connection with TCP keepalive
+conn = psycopg2.connect(
+    host="nginx-db-proxy.database.svc.cluster.local",
+    port=5432,
+    database="mydb",
+    user="myuser",
+    password="mypassword",
+
+    # ⚠️ Enable TCP keepalive
+    keepalives=1,                    # Enable (1) or disable (0)
+    keepalives_idle=60,              # Start after 60s idle
+    keepalives_interval=10,          # Probe every 10s
+    keepalives_count=9,              # 9 probes before failure
+
+    # Connection timeout
+    connect_timeout=10,
+
+    # Application-level timeout
+    options="-c statement_timeout=30000"  # 30s per query
+)
+```
+
+**Python (SQLAlchemy):**
+
+```python
+from sqlalchemy import create_engine
+
+# Connection URL
+DATABASE_URL = "postgresql://user:pass@nginx-db-proxy:5432/mydb"
+
+engine = create_engine(
+    DATABASE_URL,
+
+    # Connection pool settings
+    pool_size=10,
+    max_overflow=20,
+    pool_timeout=30,
+    pool_recycle=3600,  # Recycle connections after 1 hour
+
+    # TCP keepalive (psycopg2-specific)
+    connect_args={
+        "keepalives": 1,
+        "keepalives_idle": 60,
+        "keepalives_interval": 10,
+        "keepalives_count": 9,
+        "connect_timeout": 10,
+    }
+)
+```
+
+**Go (lib/pq):**
+
+```go
+import (
+    "database/sql"
+    _ "github.com/lib/pq"
+)
+
+// Connection string with keepalive
+connStr := "host=nginx-db-proxy.database.svc.cluster.local " +
+           "port=5432 " +
+           "user=myuser " +
+           "password=mypassword " +
+           "dbname=mydb " +
+           "sslmode=disable " +
+           "connect_timeout=10 " +
+           // TCP keepalive parameters
+           "keepalives=1 " +
+           "keepalives_idle=60 " +
+           "keepalives_interval=10 " +
+           "keepalives_count=9"
+
+db, err := sql.Open("postgres", connStr)
+if err != nil {
+    panic(err)
+}
+
+// Connection pool settings
+db.SetMaxOpenConns(25)
+db.SetMaxIdleConns(5)
+db.SetConnMaxLifetime(5 * time.Minute)
+db.SetConnMaxIdleTime(1 * time.Minute)
+```
+
+**Java (JDBC):**
+
+```java
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.util.Properties;
+
+Properties props = new Properties();
+props.setProperty("user", "myuser");
+props.setProperty("password", "mypassword");
+props.setProperty("ssl", "false");
+
+// TCP keepalive (requires OS support)
+props.setProperty("tcpKeepAlive", "true");
+
+// Connection timeout
+props.setProperty("connectTimeout", "10");
+props.setProperty("socketTimeout", "300");  // 5 minutes
+
+String url = "jdbc:postgresql://nginx-db-proxy:5432/mydb";
+Connection conn = DriverManager.getConnection(url, props);
+```
+
+---
+
+### MySQL Proxy Configuration
+
+```nginx
+stream {
+    upstream mysql_primary {
+        server mysql-primary.internal:3306 max_fails=3 fail_timeout=30s;
+    }
+
+    server {
+        listen 3306;
+        proxy_pass mysql_primary;
+
+        # MySQL default wait_timeout is 28800s (8 hours)
+        # Set proxy_timeout lower to prevent stale connections
+        proxy_timeout 600s;  # 10 minutes
+
+        proxy_connect_timeout 10s;
+        proxy_socket_keepalive on;
+    }
+}
+```
+
+**MySQL Client (Python):**
+
+```python
+import mysql.connector
+from mysql.connector import pooling
+
+# Connection pool with settings
+connection_pool = mysql.connector.pooling.MySQLConnectionPool(
+    pool_name="mypool",
+    pool_size=10,
+    pool_reset_session=True,
+
+    host="nginx-db-proxy",
+    port=3306,
+    user="myuser",
+    password="mypassword",
+    database="mydb",
+
+    # Connection timeout
+    connection_timeout=10,
+
+    # Note: MySQL connector uses system TCP keepalive settings
+    # Cannot configure directly in Python
+)
+```
+
+---
+
+### Handling "No Last Packet" Errors
+
+#### Problem: Connection Closed Without Final Packet
+
+```
+Timeline of "No Last Packet" Error:
+
+t=0      Application establishes connection to DB via NGINX
+t=1      Application sends query
+t=2      Database responds
+t=10     Connection becomes idle
+t=310    NGINX proxy_timeout (300s) expires
+         ❌ NGINX closes connection WITHOUT sending FIN/RST
+         ❌ Application doesn't know connection is dead
+t=320    Application tries to send query
+         ❌ Error: "connection reset by peer"
+         ❌ Error: "no last packet sent"
+```
+
+#### Solution 1: Shorter proxy_timeout
+
+```nginx
+stream {
+    server {
+        listen 5432;
+        proxy_pass postgres_primary;
+
+        # Set timeout SHORTER than application's idle detection
+        # If app checks every 5min, set proxy_timeout < 5min
+        proxy_timeout 240s;  # 4 minutes
+
+        proxy_socket_keepalive on;
+    }
+}
+```
+
+#### Solution 2: Application-Level Connection Validation
+
+**PostgreSQL (Python):**
+
+```python
+import psycopg2
+from psycopg2 import pool
+
+# Connection pool with validation
+connection_pool = psycopg2.pool.ThreadedConnectionPool(
+    minconn=1,
+    maxconn=10,
+    host="nginx-db-proxy",
+    port=5432,
+    database="mydb",
+    user="myuser",
+    password="mypassword",
+    keepalives=1,
+    keepalives_idle=60,
+    keepalives_interval=10,
+    keepalives_count=9,
+)
+
+def get_connection():
+    conn = connection_pool.getconn()
+
+    # ⚠️ CRITICAL: Validate connection before use
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+    except psycopg2.OperationalError:
+        # Connection is dead, get a new one
+        connection_pool.putconn(conn, close=True)
+        conn = connection_pool.getconn()
+
+    return conn
+
+def execute_query(query):
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query)
+            return cur.fetchall()
+    finally:
+        connection_pool.putconn(conn)
+```
+
+#### Solution 3: Application-Level Keepalive Queries
+
+```python
+import time
+import threading
+
+def keepalive_worker():
+    """Background thread to send keepalive queries"""
+    while True:
+        try:
+            conn = get_connection()
+            with conn.cursor() as cur:
+                # Simple keepalive query
+                cur.execute("SELECT 1")
+            connection_pool.putconn(conn)
+        except Exception as e:
+            print(f"Keepalive error: {e}")
+
+        # Send keepalive every 2 minutes
+        time.sleep(120)
+
+# Start keepalive thread
+keepalive_thread = threading.Thread(target=keepalive_worker, daemon=True)
+keepalive_thread.start()
+```
+
+---
+
+### Database Proxy Best Practices
+
+#### 1. Layered Timeout Strategy
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              Timeout Layer Stack                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Application Query Timeout: 30s                             │
+│  ├─ Prevents long-running queries                           │
+│  └─ Fast failure for application                            │
+│                                                             │
+│  Application Connection Pool Idle: 5min                     │
+│  ├─ Recycles idle connections                               │
+│  └─ Prevents stale connections in pool                      │
+│                                                             │
+│  NGINX proxy_timeout: 5min                                  │
+│  ├─ Closes truly idle connections                           │
+│  └─ Aligned with app pool timeout                           │
+│                                                             │
+│  TCP Keepalive: 60s / 10s / 9 probes                        │
+│  ├─ Detects network failures                                │
+│  └─ Total detection: 150s                                   │
+│                                                             │
+│  Cloud NAT Timeout: 240-350s                                │
+│  ├─ External constraint                                     │
+│  └─ Must configure keepalive < this                         │
+│                                                             │
+│  Database wait_timeout: 8 hours (MySQL)                     │
+│  ├─ Server-side safety net                                  │
+│  └─ Should never be reached                                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 2. Connection Pool Sizing
+
+```python
+# Appropriate pool size calculation
+#
+# Formula: pool_size = (concurrent_requests × avg_query_time) / request_interval
+#
+# Example:
+# - 100 concurrent requests
+# - Average query time: 50ms
+# - Request interval: 100ms
+#
+# pool_size = (100 × 0.05) / 0.1 = 50 connections
+
+from sqlalchemy import create_engine
+
+engine = create_engine(
+    DATABASE_URL,
+
+    # Core pool size
+    pool_size=20,              # Always maintained
+
+    # Overflow (temporary connections)
+    max_overflow=30,           # Additional when needed
+
+    # Total max: 20 + 30 = 50 connections
+
+    # Timeout waiting for connection from pool
+    pool_timeout=30,
+
+    # Recycle connections after 1 hour
+    pool_recycle=3600,
+
+    # Close connections idle > 10 minutes
+    pool_pre_ping=True,        # Validate before use
+)
+```
+
+---
+
+## 7. Complete Examples
+
+### Example 1: AWS EKS + ALB + NGINX Ingress + PostgreSQL
+
+```
+Architecture:
+Internet → AWS ALB (60s) → NGINX Ingress → API Pods → NGINX DB Proxy → RDS PostgreSQL
+```
+
+#### AWS Load Balancer Service
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress
+  namespace: ingress-nginx
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "alb"
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/healthz"
+    # ALB idle timeout configured via AWS CLI/Terraform (default: 60s)
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+  - port: 443
+    targetPort: 443
+  selector:
+    app.kubernetes.io/name: ingress-nginx
+```
+
+#### NGINX Ingress Deployment
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+spec:
+  replicas: 3
+  template:
+    spec:
+      securityContext:
+        sysctls:
+        # ALB timeout: 60s → keepalive at 30s (50% margin)
+        - name: net.ipv4.tcp_keepalive_time
+          value: "30"
+        - name: net.ipv4.tcp_keepalive_intvl
+          value: "10"
+        - name: net.ipv4.tcp_keepalive_probes
+          value: "3"
+      containers:
+      - name: controller
+        image: registry.k8s.io/ingress-nginx/controller:v1.9.5
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+data:
+  keep-alive: "50"                          # < 60s ALB timeout
+  upstream-keepalive-connections: "64"
+  upstream-keepalive-timeout: "60"
+  proxy-read-timeout: "120"
+```
+
+#### Database Proxy Deployment
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-proxy
+  namespace: database
+spec:
+  replicas: 2
+  template:
+    spec:
+      securityContext:
+        sysctls:
+        # AWS NAT Gateway timeout: 350s → keepalive at 180s
+        - name: net.ipv4.tcp_keepalive_time
+          value: "180"
+        - name: net.ipv4.tcp_keepalive_intvl
+          value: "15"
+        - name: net.ipv4.tcp_keepalive_probes
+          value: "9"
+      containers:
+      - name: nginx
+        image: nginx:1.25-alpine
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-proxy-config
+  namespace: database
+data:
+  nginx.conf: |
+    stream {
+        upstream postgres {
+            server my-rds-instance.xxxxxx.us-east-1.rds.amazonaws.com:5432;
+        }
+        server {
+            listen 5432;
+            proxy_pass postgres;
+            proxy_timeout 300s;
+            proxy_connect_timeout 10s;
+            proxy_socket_keepalive on;
+        }
+    }
+```
+
+---
+
+### Example 2: Azure AKS + Standard LB + NGINX Ingress + MySQL
+
+```
+Architecture:
+Internet → Azure Standard LB (600s) → NGINX Ingress → API Pods → MySQL Azure DB
+```
+
+#### Azure Load Balancer Service
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress
+  namespace: ingress-nginx
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-sku: "Standard"
+    # Configure 10-minute timeout
+    service.beta.kubernetes.io/azure-load-balancer-tcp-idle-timeout: "10"
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/healthz"
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+  - port: 443
+    targetPort: 443
+  selector:
+    app.kubernetes.io/name: ingress-nginx
+```
+
+#### NGINX Ingress Configuration
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+spec:
+  template:
+    spec:
+      securityContext:
+        sysctls:
+        # Azure LB: 600s (10min) → keepalive at 300s (50% margin)
+        - name: net.ipv4.tcp_keepalive_time
+          value: "300"
+        - name: net.ipv4.tcp_keepalive_intvl
+          value: "20"
+        - name: net.ipv4.tcp_keepalive_probes
+          value: "9"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+data:
+  keep-alive: "540"                         # 9 min < 10 min LB timeout
+  upstream-keepalive-connections: "64"
+  proxy-read-timeout: "540"
+```
+
+#### Application with Database Connection
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-service
+spec:
+  template:
+    spec:
+      containers:
+      - name: api
+        image: myapi:latest
+        env:
+        - name: DB_HOST
+          value: "myserver.mysql.database.azure.com"
+        - name: DB_PORT
+          value: "3306"
+        - name: DB_NAME
+          value: "mydb"
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials
+              key: password
+        # Application connects directly to Azure MySQL
+        # Ensure application enables TCP keepalive in DB driver
+```
+
+**Application Code (Python):**
+
+```python
+import mysql.connector
+from mysql.connector import pooling
+import os
+
+config = {
+    "host": os.getenv("DB_HOST"),
+    "port": int(os.getenv("DB_PORT")),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "database": os.getenv("DB_NAME"),
+    "connection_timeout": 10,
+    # MySQL uses system TCP keepalive settings
+    # Ensure pods have correct sysctl values
+}
+
+connection_pool = pooling.MySQLConnectionPool(
+    pool_name="mypool",
+    pool_size=10,
+    **config
+)
+```
+
+---
+
+### Example 3: Multi-Region with Long-Lived WebSocket
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: websocket-ingress
+  namespace: ingress-nginx
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-tcp-idle-timeout: "30"  # 30 minutes
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 443
+    targetPort: 443
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+data:
+  keep-alive: "1620"                        # 27 min < 30 min LB timeout
+  upstream-keepalive-connections: "128"     # More for WebSocket
+  upstream-keepalive-timeout: "3600"        # 1 hour for WS
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: websocket-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "websocket-svc"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: ws.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: websocket-svc
+            port:
+              number: 8080
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+spec:
+  template:
+    spec:
+      securityContext:
+        sysctls:
+        # Azure LB: 1800s (30min) → keepalive at 900s (50% margin)
+        - name: net.ipv4.tcp_keepalive_time
+          value: "900"
+        - name: net.ipv4.tcp_keepalive_intvl
+          value: "30"
+        - name: net.ipv4.tcp_keepalive_probes
+          value: "9"
+```
+
+---
+
+## Summary Reference
+
+### Quick Configuration Matrix
+
+| Scenario | LB Timeout | tcp_keepalive_time | NGINX keep-alive | proxy_timeout |
+|----------|-----------|-------------------|------------------|---------------|
+| AWS ALB (default) | 60s | 30s | 50s | 120s |
+| AWS ALB (custom 120s) | 120s | 60s | 100s | 120s |
+| AWS NLB | 350s | 180s | 300s | 120s |
+| Azure (default 240s) | 240s | 120s | 120s | 120s |
+| Azure (custom 600s) | 600s | 300s | 540s | 300s |
+| Azure (custom 1800s) | 1800s | 900s | 1620s | 600s |
+| Database Proxy | N/A | 60-180s | N/A | 300s |
+
+### Official Documentation Links
+
+**AWS:**
+- ALB: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html#connection-idle-timeout
+- NLB: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/network-load-balancers.html#connection-idle-timeout
+- Service Annotations: https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.6/guide/service/annotations/
+
+**Azure:**
+- Load Balancer Timeout: https://learn.microsoft.com/en-us/azure/load-balancer/load-balancer-tcp-idle-timeout
+- Service Annotations: https://cloud-provider-azure.sigs.k8s.io/topics/loadbalancer/
+
+**NGINX Ingress:**
+- Community Controller: https://kubernetes.github.io/ingress-nginx/
+- ConfigMap: https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/
+- Annotations: https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/annotations/
+
+**Linux Kernel:**
+- TCP Parameters: https://www.kernel.org/doc/Documentation/networking/ip-sysctl.txt
