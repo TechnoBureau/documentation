@@ -17,13 +17,13 @@ function PaginatedArticlesInner({ allArticles, pageSize, basePath }) {
 
     return (
         <>
-            <div className="flex max-w-4xl flex-col space-y-2">
+            <div className="flex w-full max-w-none flex-col gap-6 pb-8 sm:pb-10">
                 {articles.length > 0 ? (
                     articles.map((article) => (
                         <Article key={article.slug} article={article} basePath={basePath} />
                     ))
                 ) : (
-                    <p className="text-center text-zinc-600 dark:text-zinc-400 pt-8">
+                    <p className="rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-8 text-center text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-400">
                         No articles found.
                     </p>
                 )}
@@ -41,7 +41,13 @@ function PaginatedArticlesInner({ allArticles, pageSize, basePath }) {
 
 export function PaginatedArticles({ allArticles, pageSize, basePath }) {
     return (
-        <Suspense fallback={<div>Loading articles...</div>}>
+        <Suspense
+            fallback={
+                <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/80 p-8 text-center text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-400">
+                    Loading articles...
+                </div>
+            }
+        >
             <PaginatedArticlesInner
                 allArticles={allArticles}
                 pageSize={pageSize}
